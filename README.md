@@ -6,6 +6,13 @@ Serving in 1-2 miliseconds for persistent connection.
 
 read persistent connection RFC (https://tools.ietf.org/html/rfc2616)
 
+Nimble installation
+===================
+
+```
+nimble install zfblast
+```
+
 Examples
 ========
 
