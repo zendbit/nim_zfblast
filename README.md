@@ -17,6 +17,10 @@ Examples
 ========
 
 ```
+need to compiled with -d:ssl and make sure openssl installed
+```
+
+```
 let zfb = newZFBlast(
     "0.0.0.0",
     Port(8000),
@@ -55,3 +59,7 @@ waitfor zfb.serve(proc (ctx: HttpContext): Future[void] {.async.} =
     await ctx.resp
 )
 ```
+
+TODO:
+- websocket
+- upgrade to HTTP 2.0 (Future roadmap)
