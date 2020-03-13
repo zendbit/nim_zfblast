@@ -63,7 +63,7 @@ type
         body*: StringStream
 
     # HttpContext type
-    HttpContext* = ref object
+    HttpContext* = ref object of RootObj
         # Request type instance
         request*: Request
         # client asyncsocket for communicating to client
@@ -717,4 +717,9 @@ export
     uri3,
     streams,
     times,
-    nativesockets
+    nativesockets,
+    Request,
+    Response,
+    HttpContext,
+    SslSettings,
+    ZFBlast
