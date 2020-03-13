@@ -71,14 +71,14 @@ type
         # Response type instance
         response*: Response
         # send response to client, this is bridge to ZFBlast send()
-        send: proc (ctx: HttpContext): Future[void]
+        send*: proc (ctx: HttpContext): Future[void]
         # Keep-Alive header max request with given persistent timeout
         # read RFC (https://tools.ietf.org/html/rfc2616)
         # section Keep-Alive and Connection
         # for improving response performance
-        keepAliveMax: int
+        keepAliveMax*: int
         # Keep-Alive timeout
-        keepAliveTimeout: int
+        keepAliveTimeout*: int
 
     # SslSettings type for secure connection
     SslSettings* = ref object
@@ -121,7 +121,7 @@ type
         # max body length server can handle
         # can be vary on seting
         # value in bytes
-        maxBodyLength: int64
+        maxBodyLength*: int
 
 #[
     Response type procedures
