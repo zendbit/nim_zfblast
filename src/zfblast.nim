@@ -575,7 +575,7 @@ proc clientListener(
         try:
             await self.clientHandler(httpContext, callback)
 
-        except Exception as ex:
+        except Exception:
             # show debug
             if self.debug:
                 echo "Client connection closed, accept new session."
