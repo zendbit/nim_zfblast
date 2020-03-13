@@ -225,9 +225,9 @@ proc setStringBody*(
         client -> is the asyncsocket of connected client
         request -> is the request from client
         response -> is the response from server
-        keepAliveMax -> max request can handle by server on persistence connection
-            default value is 20 persistence request per connection
-        keepAliveTimeout -> keep alive timeout for persistence connection
+        keepAliveMax -> max request can handle by server on persistent connection
+            default value is 20 persistent request per connection
+        keepAliveTimeout -> keep alive timeout for persistent connection
             default value is 10 seconds
 ]#
 proc newHttpContext*(
