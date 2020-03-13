@@ -1,5 +1,5 @@
 # Package
-version     = "0.1.1"
+version     = "0.1.2"
 author      = "Amru Rosyada"
 description = "High performance http server (https://tools.ietf.org/html/rfc2616) with persistent connection for nim language"
 license     = "BSD"
