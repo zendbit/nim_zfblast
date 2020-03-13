@@ -79,8 +79,6 @@ type
         keepAliveMax*: int
         # Keep-Alive timeout
         keepAliveTimeout*: int
-        createdOn: int64
-        keepAliveReqCount: int
 
     # SslSettings type for secure connection
     SslSettings* = ref object
@@ -125,6 +123,13 @@ type
         # value in bytes
         maxBodyLength*: int
 
+proc dbg*(cb: proc ()): Future[void] {.async.} =
+    if not isNil(cb):
+        try:
+            cb()
+
+        except Exception as ex:
+            echo ex.msg
 #[
     Response type procedures
 ]#
@@ -244,9 +249,7 @@ proc newHttpContext*(
         request: request,
         response: response,
         keepAliveMax: keepAliveMax,
-        keepAliveTimeout: keepAliveTimeout,
-        createdOn: now().utc.toTime.toUnix,
-        keepAliveReqCount: keepAliveMax)
+        keepAliveTimeout: keepAliveTimeout)
 
 # response to the client
 proc resp*(self: HttpContext): Future[void] {.async.} =
@@ -295,10 +298,7 @@ proc isKeepAlive(
 
     let keepAliveHeader = httpContext.request.headers.getOrDefault("Connection")
     if keepAliveHeader == "" or
-        keepAliveHeader.toLower.contains("close") or
-        httpContext.keepAliveReqCount <= 1 or
-        ((now().utc.toTime.toUnix - httpContext.createdOn) >=
-            (httpContext.keepAliveTimeout - 1)):
+        keepAliveHeader.toLower.contains("close"):
         return false
 
     return true
@@ -322,7 +322,9 @@ proc send*(
             headers.writeLine("Connection: Keep-Alive")
 
         if not httpContext.response.headers.hasKey("Keep-Alive"):
-            headers.writeLine("Keep-Alive: timeout=10, max=20")
+            headers.writeLine("Keep-Alive: " &
+                &"timeout={httpContext.keepAliveTimeout}" &
+                &", max={httpContext.keepAliveMax}")
 
     else:
         headers.writeLine("Connection: close")
@@ -349,40 +351,41 @@ proc send*(
     # clean up all string stream request and response
     httpContext.request.clearBody()
     httpContext.response.clearBody()
+    clear(httpContext.response.headers)
+    clear(httpContext.request.headers)
 
     if not isKeepAlive and (not httpContext.client.isClosed):
         httpContext.client.close
 
     # show debug
     if self.debug:
-        echo ""
-        echo "#== start"
-        echo "Response to client"
-        echo contentHeader
-        echo "#== end"
-        echo ""
+        asyncCheck dbg(proc () =
+            echo ""
+            echo "#== start"
+            echo "Response to client"
+            echo contentHeader
+            echo "#== end"
+            echo "")
 
 # handle client connections
 proc clientHandler(
     self: ZFBlast, httpContext: HttpContext,
     callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
 
-    # count down the request
-    httpContext.keepAliveReqCount -= 1
-
     let client = httpContext.client
 
     # show debug
     if self.debug:
-        echo ""
-        echo "#== start"
-        echo "Process incoming request from client"
-        let (clientHost, clientPort) = client.getPeerAddr
-        echo &"Client address  : {clientHost}"
-        echo &"Client port     : {clientPort}"
-        echo &"Date            : " &
-            format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & " GMT"
-        echo ""
+        asyncCheck dbg(proc () =
+            echo ""
+            echo "#== start"
+            echo "Process incoming request from client"
+            let (clientHost, clientPort) = client.getPeerAddr
+            echo &"Client address  : {clientHost}"
+            echo &"Client port     : {clientPort}"
+            echo &"Date            : " &
+                format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & " GMT"
+            echo "")
 
     # parse step
     var parseStep = ContentParseStep.ReqMethod
@@ -424,8 +427,9 @@ proc clientHandler(
                 else:
                     # show debug
                     if self.debug:
-                        echo "Bad request cannot process request."
-                        echo &"{reqParts[0]} not implemented."
+                        asyncCheck dbg(proc () =
+                            echo "Bad request cannot process request."
+                            echo &"{reqParts[0]} not implemented.")
 
                     httpContext.response.httpCode = Http501
                     await self.send(httpContext)
@@ -442,8 +446,9 @@ proc clientHandler(
             else:
                 # show debug
                 if self.debug:
-                    echo "Bad request cannot process request."
-                    echo &"Wrong request header format."
+                    asyncCheck dbg(proc () =
+                        echo "Bad request cannot process request."
+                        echo &"Wrong request header format.")
 
                 httpContext.response.httpCode = Http400
                 await self.send(httpContext)
@@ -453,7 +458,8 @@ proc clientHandler(
 
             #show debug
             if self.debug:
-                echo line
+                asyncCheck dbg(proc () =
+                    echo line)
 
         of ContentParseStep.Header:
             let headerParts = line.strip.split(":")
@@ -464,7 +470,8 @@ proc clientHandler(
 
             #show debug
             if self.debug:
-                echo line
+                asyncCheck dbg(proc () =
+                    echo line)
 
             if line == CRLF:
                 # if in post, put and patch simply set parse body step
@@ -494,9 +501,10 @@ proc clientHandler(
             if bodyLen > self.maxBodyLength:
                 # show debug
                 if self.debug:
-                    echo "Body request to large server cannot handle."
-                    echo &"Only {self.maxBodyLength} bytes allowed."
-                    echo "Should change maxBodyLength value in settings."
+                    asyncCheck dbg(proc () =
+                        echo "Body request to large server cannot handle."
+                        echo &"Only {self.maxBodyLength} bytes allowed."
+                        echo "Should change maxBodyLength value in settings.")
 
                 httpContext.response.httpCode = Http413
                 await self.send(httpContext)
@@ -542,8 +550,9 @@ proc clientHandler(
             return
 
     if self.debug:
-        echo "#== end"
-        echo ""
+        asyncCheck dbg(proc () =
+            echo "#== end"
+            echo "")
 
     # call the callback
     if not isNil(callback):
@@ -578,7 +587,8 @@ proc clientListener(
         except Exception:
             # show debug
             if self.debug:
-                echo "Client connection closed, accept new session."
+                asyncCheck dbg(proc () =
+                    echo "Client connection closed, accept new session.")
 
             break
 
@@ -665,26 +675,27 @@ proc newZFBlast*(
 
     # show debugging output
     if debug:
-        echo ""
-        echo "#== start"
-        echo "Initialize ZFBlast"
-        echo &"Bind address    : {address}"
-        echo &"Port            : {port}"
-        echo &"Debug           : {debug}"
-        echo &"Reuse address   : {reuseAddress}"
-        echo &"Reuse port      : {reusePort}"
-        if isNil(sslSettings):
-            echo &"Ssl             : {false}"
-        else:
-            echo &"Ssl             : {true}"
-            echo &"Ssl Cert        : {sslSettings.certFile}"
-            echo &"Ssl Key         : {sslSettings.keyFile}"
-            var verifyPeer = false
-            if sslSettings.verifyMode == SslCVerifyMode.CVerifyPeer:
-                verifyPeer = true
-            echo &"Ssl Verify Peer : {verifyPeer}"
-        echo "#== end"
-        echo ""
+        asyncCheck dbg(proc () =
+            echo ""
+            echo "#== start"
+            echo "Initialize ZFBlast"
+            echo &"Bind address    : {address}"
+            echo &"Port            : {port}"
+            echo &"Debug           : {debug}"
+            echo &"Reuse address   : {reuseAddress}"
+            echo &"Reuse port      : {reusePort}"
+            if isNil(sslSettings):
+                echo &"Ssl             : {false}"
+            else:
+                echo &"Ssl             : {true}"
+                echo &"Ssl Cert        : {sslSettings.certFile}"
+                echo &"Ssl Key         : {sslSettings.keyFile}"
+                var verifyPeer = false
+                if sslSettings.verifyMode == SslCVerifyMode.CVerifyPeer:
+                    verifyPeer = true
+                echo &"Ssl Verify Peer : {verifyPeer}"
+            echo "#== end"
+            echo "")
 
     instance.setupServer
 
