@@ -7,3 +7,4 @@ srcDir      = "src"
 
 # Deps
 requires "nim >= 1.0.0"
+requires "uri3"
