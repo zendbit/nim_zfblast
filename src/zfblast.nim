@@ -358,7 +358,7 @@ proc send*(
         echo ""
         echo "#== start"
         echo "Response to client"
-        echo contentHeader & contentBody
+        echo contentHeader
         echo "#== end"
         echo ""
 
