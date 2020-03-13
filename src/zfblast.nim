@@ -79,6 +79,8 @@ type
         keepAliveMax*: int
         # Keep-Alive timeout
         keepAliveTimeout*: int
+        createdOn: int64
+        keepAliveReqCount: int
 
     # SslSettings type for secure connection
     SslSettings* = ref object
@@ -242,7 +244,9 @@ proc newHttpContext*(
         request: request,
         response: response,
         keepAliveMax: keepAliveMax,
-        keepAliveTimeout: keepAliveTimeout)
+        keepAliveTimeout: keepAliveTimeout,
+        createdOn: now().utc.toTime.toUnix,
+        keepAliveReqCount: keepAliveMax)
 
 # response to the client
 proc resp*(self: HttpContext): Future[void] {.async.} =
@@ -285,19 +289,27 @@ proc setupServer(self: ZFBlast) =
         else:
             self.sslServer = newAsyncSocket()
 
+proc isKeepAlive(
+    self: ZFBlast,
+    httpContext: HttpContext): bool =
+
+    let keepAliveHeader = httpContext.request.headers.getOrDefault("Connection")
+    if keepAliveHeader == "" or
+        keepAliveHeader.toLower.contains("close") or
+        httpContext.keepAliveReqCount <= 1 or
+        ((now().utc.toTime.toUnix - httpContext.createdOn) >=
+            (httpContext.keepAliveTimeout - 1)):
+        return false
+
+    return true
+
 # send response to the client
 proc send*(
     self: ZFBlast,
     httpContext: HttpContext): Future[void] {.async.} =
 
     var contentBody: string
-    var isKeepAlive = true
-
-    let keepAliveHeader = httpContext.request.headers.getOrDefault("Connection")
-    if keepAliveHeader == "" or
-        keepAliveHeader.toLower == "close" or
-        httpContext.keepAliveMax <= 1:
-        isKeepAlive = false
+    let isKeepAlive = self.isKeepAlive(httpContext)
 
     let headers = newStringStream("")
     headers.writeLine(&"{HTTP_VERSION} {httpContext.response.httpCode}")
@@ -334,10 +346,11 @@ proc send*(
     else:
         await httpContext.client.send(contentHeader & contentBody)
 
+    # clean up all string stream request and response
     httpContext.request.clearBody()
     httpContext.response.clearBody()
 
-    if not isKeepAlive:
+    if not isKeepAlive and (not httpContext.client.isClosed):
         httpContext.client.close
 
     # show debug
@@ -355,7 +368,7 @@ proc clientHandler(
     callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
 
     # count down the request
-    httpContext.keepAliveMax -= 1
+    httpContext.keepAliveReqCount -= 1
 
     let client = httpContext.client
 
@@ -494,6 +507,7 @@ proc clientHandler(
             )
 
             #show debug
+            #[
             if self.debug:
                 let bodySeq = httpContext.request.readBody.split("\n")
                 let contentType = httpContext.request.headers
@@ -520,6 +534,7 @@ proc clientHandler(
                             bodyLineStrip == "" or
                             (bodyLineStrip != "" and (not isAttachment)):
                         echo bodyLineStrip
+            ]#
 
         else:
             httpContext.response.httpCode = Http411
@@ -557,7 +572,15 @@ proc clientListener(
         await self.send(ctx)
 
     while not httpContext.client.isClosed:
-        await self.clientHandler(httpContext, callback)
+        try:
+            await self.clientHandler(httpContext, callback)
+
+        except Exception:
+            # show debug
+            if self.debug:
+                echo "Client connection closed, accept new session."
+
+            break
 
 # serve unscure connection (http)
 proc doServe(
@@ -673,7 +696,7 @@ if isMainModule:
     let zfb = newZFBlast(
         "0.0.0.0",
         Port(8000),
-        debug = false,
+        debug = true,
         sslSettings = newSslSettings(
             certFile = joinPath("ssl", "certificate.pem"),
             keyFile = joinPath("ssl", "key.pem"),
@@ -687,12 +710,12 @@ if isMainModule:
         of "/":
             ctx.response.httpCode = Http200
             ctx.response.headers.add("Content-Type", "text/plain")
-            ctx.response.body.write(newFileStream("sslTest.nim").readAll())
+            ctx.response.body.write("Halo")
         # http(s)://localhost/home
         of "/home":
             ctx.response.httpCode = Http200
             ctx.response.headers.add("Content-Type", "text/html")
-            ctx.response.body.write(newFileStream("index.html").readAll())
+            ctx.response.body.write(newFileStream("<html><body>Hello</body></html>").readAll())
         # http(s)://localhost/api/home
         of "/api/home":
             ctx.response.httpCode = Http200
@@ -722,4 +745,5 @@ export
     Response,
     HttpContext,
     SslSettings,
-    ZFBlast
+    ZFBlast,
+    SslCVerifyMode
