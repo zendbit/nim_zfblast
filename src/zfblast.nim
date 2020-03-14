@@ -271,42 +271,38 @@ proc send*(
     var contentBody: string
     let isKeepAlive = self.isKeepAlive(httpContext)
 
-    let headers = newStringStream("")
-    headers.writeLine(&"{HTTP_VERSION} {httpContext.response.httpCode}")
-    headers.writeLine(&"Server: {SERVER_ID} {SERVER_VERSION}")
-    headers.writeLine("Date: " &
-        format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & " GMT")
+    var headers = ""
+    headers &= &"{HTTP_VERSION} {httpContext.response.httpCode}\n"
+    headers &= &"Server: {SERVER_ID} {SERVER_VERSION}\n"
+    headers &= "Date: " &
+        format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & " GMT\n"
 
     if isKeepAlive:
         if not httpContext.response.headers.hasKey("Connection"):
-            headers.writeLine("Connection: keep-alive")
+            headers &= "Connection: keep-alive\n"
 
         if not httpContext.response.headers.hasKey("Keep-Alive"):
-            headers.writeLine("Keep-Alive: " &
+            headers &= "Keep-Alive: " &
                 &"timeout={httpContext.keepAliveTimeout}" &
-                &", max={httpContext.keepAliveMax}")
+                &", max={httpContext.keepAliveMax}\n"
 
     else:
-        headers.writeLine("Connection: close")
+        headers &= "Connection: close\n"
 
     if httpContext.request.httpMethod != HttpHead:
         contentBody = httpContext.response.body
-        headers.writeLine(&"Content-Length: {contentBody.len}")
+        headers &= &"Content-Length: {contentBody.len}\n"
 
     for k, v in httpContext.response.headers.pairs:
-        headers.writeLine(&"{k}: {v}")
+        headers &= &"{k}: {v}\n"
 
-    headers.write(CRLF)
-    headers.setPosition(0)
-
-    let contentHeader = headers.readAll
-    headers.close
+    headers &= CRLF
 
     if httpContext.request.httpMethod == HttpHead:
-        await httpContext.client.send(contentHeader)
+        await httpContext.client.send(headers)
 
     else:
-        await httpContext.client.send(contentHeader & contentBody)
+        await httpContext.client.send(headers & contentBody)
 
     # clean up all string stream request and response
     httpContext.clear
@@ -320,7 +316,7 @@ proc send*(
             echo ""
             echo "#== start"
             echo "Response to client"
-            echo contentHeader
+            echo headers
             echo "#== end"
             echo "")
 
