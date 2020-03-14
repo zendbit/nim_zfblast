@@ -51,7 +51,7 @@ type
         # containt request headers from client
         headers*: HttpHeaders
         # contain request body from client
-        body*: StringStream
+        body*: string
 
     # Response type
     Response* = ref object
@@ -60,7 +60,7 @@ type
         # headers response to client
         headers*: HttpHeaders
         # body response to client
-        body*: StringStream
+        body*: string
 
     # HttpContext type
     HttpContext* = ref object of RootObj
@@ -144,7 +144,7 @@ proc newRequest*(
     httpVersion: string = HTTP_VERSION,
     url: Uri3 = parseUri3(""),
     headers: HttpHeaders = newHttpHeaders(),
-    body: StringStream = newStringStream("")): Request =
+    body: string = ""): Request =
 
     return Request(
         httpMethod: httpMethod,
@@ -152,24 +152,6 @@ proc newRequest*(
         url: url,
         headers: headers,
         body: body)
-
-# read the content body
-proc readBody*(self: Request): string =
-
-    self.body.setPosition(0)
-    return self.body.readAll
-
-# clear the content body
-proc clearBody*(self: Request) =
-
-    self.body = newStringStream("")
-
-# set the content body
-proc setStringBody*(
-    self: Request,
-    body: string) =
-
-    self.body = newStringStream(body)
 ###
 
 #[
@@ -183,42 +165,12 @@ proc setStringBody*(
 proc newResponse*(
     httpCode: HttpCode = Http200,
     headers: HttpHeaders = newHttpHeaders(),
-    body: StringStream = newStringStream("")): Response =
+    body: string = ""): Response =
 
     return Response(
         httpCode: httpCode,
         headers: headers,
         body: body)
-
-proc newResponse*(
-    httpCode: HttpCode = Http200,
-    headers: HttpHeaders = newHttpHeaders(),
-    body: string = ""): Response =
-
-    let strm = newStringStream("")
-    strm.write(body)
-    return Response(
-        httpCode: httpCode,
-        headers: headers,
-        body: strm)
-
-# read the body of response
-proc readBody*(self: Response): string =
-
-    self.body.setPosition(0)
-    return self.body.readAll
-
-# clear the body of response
-proc clearBody*(self: Response) =
-
-    self.body = newStringStream("")
-
-# set body response with string
-proc setStringBody*(
-    self: Response,
-    body: string) =
-
-    self.body = newStringStream(body)
 ###
 
 #[
@@ -255,6 +207,14 @@ proc newHttpContext*(
 proc resp*(self: HttpContext): Future[void] {.async.} =
     if not isNil(self.send):
         await self.send(self)
+
+# clear the context for next persistent connection
+proc clear*(self: HttpContext) =
+    self.request.body = ""
+    self.response.body = ""
+    clear(self.response.headers)
+    clear(self.request.headers)
+
 ###
 
 #[
@@ -319,7 +279,7 @@ proc send*(
 
     if isKeepAlive:
         if not httpContext.response.headers.hasKey("Connection"):
-            headers.writeLine("Connection: Keep-Alive")
+            headers.writeLine("Connection: keep-alive")
 
         if not httpContext.response.headers.hasKey("Keep-Alive"):
             headers.writeLine("Keep-Alive: " &
@@ -330,7 +290,7 @@ proc send*(
         headers.writeLine("Connection: close")
 
     if httpContext.request.httpMethod != HttpHead:
-        contentBody = httpContext.response.readBody
+        contentBody = httpContext.response.body
         headers.writeLine(&"Content-Length: {contentBody.len}")
 
     for k, v in httpContext.response.headers.pairs:
@@ -349,10 +309,7 @@ proc send*(
         await httpContext.client.send(contentHeader & contentBody)
 
     # clean up all string stream request and response
-    httpContext.request.clearBody()
-    httpContext.response.clearBody()
-    clear(httpContext.response.headers)
-    clear(httpContext.request.headers)
+    httpContext.clear
 
     if not isKeepAlive and (not httpContext.client.isClosed):
         httpContext.client.close
@@ -510,9 +467,7 @@ proc clientHandler(
                 await self.send(httpContext)
                 return
 
-            httpContext.request.body.write(
-                await client.recv(bodyLen)
-            )
+            httpContext.request.body = await client.recv(bodyLen)
 
             #show debug
             #[
@@ -721,21 +676,21 @@ if isMainModule:
         of "/":
             ctx.response.httpCode = Http200
             ctx.response.headers.add("Content-Type", "text/plain")
-            ctx.response.body.write("Halo")
+            ctx.response.body = "Halo"
         # http(s)://localhost/home
         of "/home":
             ctx.response.httpCode = Http200
             ctx.response.headers.add("Content-Type", "text/html")
-            ctx.response.body.write(newFileStream("<html><body>Hello</body></html>").readAll())
+            ctx.response.body = "<html><body>Hello</body></html>"
         # http(s)://localhost/api/home
         of "/api/home":
             ctx.response.httpCode = Http200
             ctx.response.headers.add("Content-Type", "application/json")
-            ctx.response.body.write("""{"version" : "0.1.0"}""")
+            ctx.response.body = """{"version" : "0.1.0"}"""
         # will return 404 not found if route not defined
         else:
             ctx.response.httpCode = Http404
-            ctx.response.body.write("not found")
+            ctx.response.body = "not found"
 
         await ctx.resp
     )
