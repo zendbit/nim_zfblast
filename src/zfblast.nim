@@ -430,11 +430,8 @@ proc clientHandler(
                     echo line)
 
         of ContentParseStep.Header:
-            let headerParts = line.strip.split(":")
-            if headerParts.len == 2:
-                let headerKey = headerParts[0].strip
-                let headerVal = headerParts[1].strip
-                httpContext.request.headers.add(headerKey, headerVal)
+            let header = parseHeader(line)
+            httpContext.request.headers[header.key] = header.value
 
             #show debug
             if self.debug:
