@@ -80,7 +80,7 @@ type
         # Keep-Alive timeout
         keepAliveTimeout*: int
         # is this an SSL connection?
-        secure: bool
+        secure*: bool
 
     # SslSettings type for secure connection
     SslSettings* = ref object
