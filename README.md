@@ -40,22 +40,36 @@ waitfor zfb.serve(proc (ctx: HttpContext): Future[void] {.async.} =
         ctx.response.httpCode = Http200
         ctx.response.headers.add("Content-Type", "text/plain")
         # make sure index.html file exist
-        ctx.response.body.write(newFileStream("index.html").readAll())
+        ctx.response.body = newFileStream("index.html").readAll()
     # http(s)://localhost/home
+    of "/secureflag":
+        # is secure flag, the idea from qbradley
+        # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
+        # the alternative we can check the client socket is ssl or not
+        # if not ctx.client.isSsl:
+        #   ctx.response.httpCode = Http301
+        #   ctx.response.headers.add("Location", "https://127.0.0.1:8443")
+        #   ctx.response.body = "Use secure website only"
+        # also we can check the flag as qbradley request
+        if not ctx.isSecure:
+            ctx.response.httpCode = Http301
+            ctx.response.headers.add("Location", "https://127.0.0.1:8443")
+            ctx.response.body = "Use secure website only"
+            
     of "/home":
         ctx.response.httpCode = Http200
         ctx.response.headers.add("Content-Type", "text/html")
         # make sure index.html file exist
-        ctx.response.body.write(newFileStream("index.html").readAll())
+        ctx.response.body = newFileStream("index.html").readAll()
     # http(s)://localhost/api/home
     of "/api/home":
         ctx.response.httpCode = Http200
         ctx.response.headers.add("Content-Type", "application/json")
-        ctx.response.body.write("""{"version" : "0.1.0"}""")
+        ctx.response.body = """{"version" : "0.1.0"}"""
     # will return 404 not found if route not defined
     else:
         ctx.response.httpCode = Http404
-        ctx.response.body.write("not found")
+        ctx.response.body = "not found"
     await ctx.resp
 )
 ```
