@@ -79,6 +79,8 @@ type
         keepAliveMax*: int
         # Keep-Alive timeout
         keepAliveTimeout*: int
+        # is this an SSL connection?
+        secure: bool
 
     # SslSettings type for secure connection
     SslSettings* = ref object
@@ -190,6 +192,7 @@ proc newResponse*(
             default value is 10 seconds
 ]#
 proc newHttpContext*(
+    secure: bool,
     client: AsyncSocket,
     request: Request = newRequest(),
     response: Response = newResponse(body = ""),
@@ -197,6 +200,7 @@ proc newHttpContext*(
     keepAliveTimeout: int = 20): HttpContext =
 
     return HttpContext(
+        secure: secure,
         client: client,
         request: request,
         response: response,
@@ -518,11 +522,13 @@ proc clientHandler(
 proc clientListener(
     self: ZFBlast,
     client: AsyncSocket,
-    callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
+    callback: proc (ctx: HttpContext): Future[void],
+    secure: bool): Future[void] {.async.} =
 
     # setup http context
     let (clientHost, clientPort) = client.getPeerAddr
     let httpContext = newHttpContext(
+        secure = secure,
         client = client,
         keepAliveTimeout = self.keepAliveTimeout,
         keepAliveMax = self.keepAliveMax)
@@ -559,7 +565,7 @@ proc doServe(
 
         while true:
             let client = await self.server.accept
-            asyncCheck self.clientListener(client, callback)
+            asyncCheck self.clientListener(client, callback, false)
 
 # serve secure connection (https)
 proc doServeSecure(
@@ -587,7 +593,7 @@ proc doServeSecure(
             wrapConnectedSocket(sslContext, client,
                 SslHandshakeType.handshakeAsServer, &"{host}:{port}")
 
-            asyncCheck self.clientListener(client, callback)
+            asyncCheck self.clientListener(client, callback, true)
 
 # serve the server
 # will have secure and unsecure connection if SslSettings given
