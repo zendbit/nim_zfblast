@@ -10,6 +10,10 @@ Nimble installation
 ===================
 
 ```
+use for the latest version:
+nimble develop zfblast
+
+or use the nimble version not guarantee point to the latest version:
 nimble install zfblast
 ```
 
