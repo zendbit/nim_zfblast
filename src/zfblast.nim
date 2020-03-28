@@ -28,7 +28,7 @@ const
     # server header identifier
     SERVER_ID* = "ZFBlast (Nim)"
     # server build version
-    SERVER_VERSION* = "V0.1.0"
+    SERVER_VERSION* = "V0.1.3"
     # CRLF header token
     CRLF* = "\c\L"
 
@@ -65,9 +65,9 @@ type
     # HttpContext type
     HttpContext* = ref object of RootObj
         # Request type instance
-        request*: Request
+        request: Request
         # client asyncsocket for communicating to client
-        client*: AsyncSocket
+        client: AsyncSocket
         # Response type instance
         response*: Response
         # send response to client, this is bridge to ZFBlast send()
@@ -214,6 +214,21 @@ proc clear*(self: HttpContext) =
     self.response.body = ""
     clear(self.response.headers)
     clear(self.request.headers)
+
+# return request
+proc request*(self: HttpContext): Request =
+    return self.request
+
+# return asyncsocket client
+proc client*(self: HttpContext): AsyncSocket =
+    return self.client
+
+# return secure or not of the client request
+# is secure flag, the idea from qbradley
+# https://github.com/zendbit/nim.zfblast/commits?author=qbradley
+# we will keep it private, because this is the readonly flaq
+proc isSecure*(self: HttpContext): bool =
+    return self.client.isSsl
 
 ###
 
@@ -673,7 +688,20 @@ if isMainModule:
             ctx.response.httpCode = Http200
             ctx.response.headers.add("Content-Type", "text/plain")
             ctx.response.body = "Halo"
-        # http(s)://localhost/home
+        of "/secureflag":
+            # is secure flag, the idea from qbradley
+            # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
+            # the alternative we can check the client socket is ssl or not
+            # if not ctx.client.isSsl:
+            #   ctx.response.httpCode = Http301
+            #   ctx.response.headers.add("Location", "https://127.0.0.1:8443")
+            #   ctx.response.body = "Use secure website only"
+            # also we can check the flag as qbradley request
+            if not ctx.isSecure:
+                ctx.response.httpCode = Http301
+                ctx.response.headers.add("Location", "https://127.0.0.1:8443")
+                ctx.response.body = "Use secure website only"
+        # http(s)://localhost/secureflag
         of "/home":
             ctx.response.httpCode = Http200
             ctx.response.headers.add("Content-Type", "text/html")
