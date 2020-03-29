@@ -65,9 +65,9 @@ type
     # HttpContext type
     HttpContext* = ref object of RootObj
         # Request type instance
-        request: Request
+        request*: Request
         # client asyncsocket for communicating to client
-        client: AsyncSocket
+        client*: AsyncSocket
         # Response type instance
         response*: Response
         # send response to client, this is bridge to ZFBlast send()
@@ -214,14 +214,6 @@ proc clear*(self: HttpContext) =
     self.response.body = ""
     clear(self.response.headers)
     clear(self.request.headers)
-
-# return request
-proc request*(self: HttpContext): Request =
-    return self.request
-
-# return asyncsocket client
-proc client*(self: HttpContext): AsyncSocket =
-    return self.client
 
 # return secure or not of the client request
 # is secure flag, the idea from qbradley
