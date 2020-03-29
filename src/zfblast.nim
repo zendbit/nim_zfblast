@@ -437,12 +437,6 @@ proc clientHandler(
             if headers.key.strip != "" and headers.value.len != 0:
                 httpContext.request.headers[headers.key] = headers.value
 
-            #let headerParts = line.strip.split(":")
-            #if headerParts.len == 2:
-            #    let headerKey = headerParts[0].strip
-            #    let headerVal = headerParts[1].strip
-            #    httpContext.request.headers.add(headerKey, headerVal)
-
             #show debug
             if self.debug:
                 asyncCheck dbg(proc () =
