@@ -430,11 +430,18 @@ proc clientHandler(
                     echo line)
 
         of ContentParseStep.Header:
-            let headerParts = line.strip.split(":")
-            if headerParts.len == 2:
-                let headerKey = headerParts[0].strip
-                let headerVal = headerParts[1].strip
-                httpContext.request.headers.add(headerKey, headerVal)
+            # pull reqeust @@ -430,11 +430,8 @@ proc clientHandler(
+            # qbradley
+            # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
+            let headers = parseHeader(line.strip)
+            if headers.key.strip != "" and headers.value.len != 0:
+                httpContext.request.headers[headers.key] = headers.value
+
+            #let headerParts = line.strip.split(":")
+            #if headerParts.len == 2:
+            #    let headerKey = headerParts[0].strip
+            #    let headerVal = headerParts[1].strip
+            #    httpContext.request.headers.add(headerKey, headerVal)
 
             #show debug
             if self.debug:
