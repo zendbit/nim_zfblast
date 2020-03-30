@@ -395,12 +395,14 @@ proc clientHandler(
                     await self.send(httpContext)
                     return
 
-                var protocol = "http://"
+                var protocol = "http"
                 if client.isSsl:
-                    protocol = "https://"
+                    protocol = "https"
 
+                let (peerAddr, _) = client.getPeerAddr
                 httpContext.request.url = parseUri3(reqParts[1])
                 httpContext.request.url.setScheme(protocol)
+                httpContext.request.url.setDomain(peerAddr)
                 httpContext.request.httpVersion = reqParts[2]
 
             else:
@@ -529,13 +531,12 @@ proc clientListener(
     callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
 
     # setup http context
-    let (clientHost, clientPort) = client.getPeerAddr
+    #let (clientHost, clientPort) = client.getPeerAddr
     let httpContext = newHttpContext(
         client = client,
         keepAliveTimeout = self.keepAliveTimeout,
         keepAliveMax = self.keepAliveMax)
-    httpContext.request.url.setDomain(clientHost)
-    httpContext.request.url.setPort($clientPort)
+    
     httpContext.send = proc (ctx: HttpContext): Future[void] {.async.} =
         await self.send(ctx)
 
