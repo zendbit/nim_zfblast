@@ -399,7 +399,7 @@ proc clientHandler(
                 if client.isSsl:
                     protocol = "https"
 
-                let (peerAddr, _) = client.getPeerAddr
+                let (peerAddr, _) = client.getLocalAddr
                 httpContext.request.url = parseUri3(reqParts[1])
                 httpContext.request.url.setScheme(protocol)
                 httpContext.request.url.setDomain(peerAddr)
