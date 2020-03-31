@@ -263,7 +263,7 @@ proc isKeepAlive(
     self: ZFBlast,
     httpContext: HttpContext): bool =
 
-    let keepAliveHeader = httpContext.request.headers.getOrDefault("Connection")
+    let keepAliveHeader = httpContext.request.headers.getOrDefault("connection")
     if keepAliveHeader == "" or
         keepAliveHeader.toLower.contains("close"):
         return false
@@ -285,10 +285,12 @@ proc send*(
         format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & " GMT\n"
 
     if isKeepAlive:
-        if not httpContext.response.headers.hasKey("Connection"):
+        if not (httpContext.response.headers.hasKey("Connection") or
+            httpContext.response.headers.hasKey("connection")):
             headers &= "Connection: keep-alive\n"
 
-        if not httpContext.response.headers.hasKey("Keep-Alive"):
+        if not (httpContext.response.headers.hasKey("Keep-Alive") or
+            httpContext.response.headers.hasKey("keep-alive")):
             headers &= "Keep-Alive: " &
                 &"timeout={httpContext.keepAliveTimeout}" &
                 &", max={httpContext.keepAliveMax}\n"
@@ -429,7 +431,7 @@ proc clientHandler(
             # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
             let headers = parseHeader(line.strip)
             if headers.key.strip != "" and headers.value.len != 0:
-                httpContext.request.headers[headers.key] = headers.value
+                httpContext.request.headers[headers.key.toLower] = headers.value
 
             #show debug
             if self.debug:
@@ -453,7 +455,7 @@ proc clientHandler(
 
         #httpContext.request.body.writeLine(line)
         let contentLength = httpContext.request.headers
-            .getOrDefault("Content-Length")
+            .getOrDefault("content-length")
 
         # check body content
         if contentLength != "":
