@@ -152,6 +152,13 @@ proc newRequest*(
         url: url,
         headers: headers,
         body: body)
+
+proc getHttpHeaderValue*(key: string, httpHeaders: HttpHeaders): HttpHeaderValues = 
+    var headers: HttpHeaderValues = httpHeaders.getOrDefault(key)
+    if headers == "":
+        return httpHeaders.getOrDefault(key.toLower())
+
+    return headers
 ###
 
 #[
@@ -263,12 +270,14 @@ proc isKeepAlive(
     self: ZFBlast,
     httpContext: HttpContext): bool =
 
-    let keepAliveHeader = httpContext.request.headers.getOrDefault("connection")
-    if keepAliveHeader == "" or
-        keepAliveHeader.toLower.contains("close"):
-        return false
+    let keepAliveHeader = getHttpHeaderValue(
+        "Connection",
+        httpContext.request.headers)
+    if keepAliveHeader != "":
+        if keepAliveHeader.toLower().find("close") == -1:
+            return true
 
-    return true
+    return false
 
 # send response to the client
 proc send*(
@@ -431,7 +440,7 @@ proc clientHandler(
             # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
             let headers = parseHeader(line.strip)
             if headers.key.strip != "" and headers.value.len != 0:
-                httpContext.request.headers[headers.key.toLower] = headers.value
+                httpContext.request.headers[headers.key] = headers.value
 
             #show debug
             if self.debug:
@@ -454,8 +463,9 @@ proc clientHandler(
         #    bodyBoundary = line
 
         #httpContext.request.body.writeLine(line)
-        let contentLength = httpContext.request.headers
-            .getOrDefault("content-length")
+        let contentLength = getHttpHeaderValue(
+            "content-length", 
+            httpContext.request.headers)
 
         # check body content
         if contentLength != "":
