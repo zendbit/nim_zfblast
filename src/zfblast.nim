@@ -441,6 +441,8 @@ proc clientHandler(
             let headers = parseHeader(line.strip)
             if headers.key.strip != "" and headers.value.len != 0:
                 httpContext.request.headers[headers.key] = headers.value
+                if headers.key.toLower() == "host":
+                    httpContext.request.url.setDomain(headers.value.join(", "))
 
             #show debug
             if self.debug:
