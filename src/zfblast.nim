@@ -288,7 +288,7 @@ proc send*(
     self: ZFBlast,
     httpContext: HttpContext): Future[void] {.async.} =
     try:
-        var contentBody: string
+        var contentBody: string = ""
         let isKeepAlive = self.isKeepAlive(httpContext)
 
         var headers = ""
