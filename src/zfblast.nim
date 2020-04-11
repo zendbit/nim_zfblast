@@ -156,7 +156,7 @@ proc newRequest*(
         headers: headers,
         body: body)
 
-proc getHttpHeaderValue*(key: string, httpHeaders: HttpHeaders): HttpHeaderValues =
+proc getHttpHeaderValues*(key: string, httpHeaders: HttpHeaders): HttpHeaderValues =
     var headers: HttpHeaderValues = httpHeaders.getOrDefault(key)
     if headers == "":
         return httpHeaders.getOrDefault(key.toLower())
@@ -274,7 +274,7 @@ proc isKeepAlive(
     self: ZFBlast,
     httpContext: HttpContext): bool =
 
-    let keepAliveHeader = getHttpHeaderValue(
+    let keepAliveHeader = getHttpHeaderValues(
         "Connection",
         httpContext.request.headers)
     if keepAliveHeader != "":
@@ -480,7 +480,7 @@ proc clientHandler(
             #    bodyBoundary = line
 
             #httpContext.request.body.writeLine(line)
-            let contentLength = getHttpHeaderValue(
+            let contentLength = getHttpHeaderValues(
                 "content-length",
                 httpContext.request.headers)
 
