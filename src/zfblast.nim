@@ -324,6 +324,7 @@ proc send*(
             httpContext.client.isClosed(): return
 
         echo ">>>>>>>>"
+        echo &"{httpContext.request.headers}"
         echo &"is nil httpCLient {isNil(httpContext.client)}"
 
         if httpContext.request.httpMethod == HttpHead:
