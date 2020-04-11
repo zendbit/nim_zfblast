@@ -543,7 +543,7 @@ proc clientHandler(
         else:
             #httpContext.response.httpCode = Http411
             #await self.send(httpContext)
-            client.closed()
+            client.close()
             return
 
     if self.debug:
