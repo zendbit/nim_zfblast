@@ -288,7 +288,9 @@ proc send*(
     self: ZFBlast,
     httpContext: HttpContext): Future[void] {.async.} =
 
-    if httpContext.request.headers.len == 0: return
+    if httpContext.request.headers.len == 0:
+        httpContext.client.close()
+        return
 
     try:
         var contentBody: string = ""
