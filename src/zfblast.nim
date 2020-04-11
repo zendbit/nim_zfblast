@@ -330,7 +330,7 @@ proc send*(
             await httpContext.client.send(headers)
 
         else:
-            echo &"is nil httpCLient {isNil(httpContext.client.isClosed())}"
+            echo &"is nil httpCLient {httpContext.client.isClosed()}"
             echo &"is nil httpCLient {headers}"
             await httpContext.client.send(headers & contentBody)
 
