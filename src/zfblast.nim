@@ -320,6 +320,8 @@ proc send*(
 
         headers &= CRLF
 
+        if isNil(client): return
+
         if httpContext.request.httpMethod == HttpHead:
             await httpContext.client.send(headers)
 
@@ -327,7 +329,7 @@ proc send*(
             await httpContext.client.send(headers & contentBody)
 
         # clean up all string stream request and response
-        httpContext.clear
+        httpContext.clear()
 
         if not isKeepAlive and (not httpContext.client.isClosed):
             httpContext.client.close
