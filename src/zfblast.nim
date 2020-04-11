@@ -376,6 +376,7 @@ proc clientHandler(
         # parse step
         var parseStep = ContentParseStep.ReqMethod
         while true:
+            if isNil(client): return
             let line = await client.recvLine()
             
             case parseStep
