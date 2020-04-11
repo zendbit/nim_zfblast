@@ -34,7 +34,9 @@ let zfb = newZFBlast(
     sslSettings = newSslSettings(
         certFile = joinPath("ssl", "certificate.pem"),
         keyFile = joinPath("ssl", "key.pem"),
-        verifyMode = SslCVerifyMode.CVerifyNone,
+        #verifyMode = SslCVerifyMode.CVerifyNone,
+        #changed verifyMode to verify
+        verify = false,
         port = Port(8443)
     ))
 waitfor zfb.serve(proc (ctx: HttpContext): Future[void] {.async.} =
