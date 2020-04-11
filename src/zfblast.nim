@@ -320,7 +320,7 @@ proc send*(
 
         headers &= CRLF
 
-        if isNil(client): return
+        if isNil(httpContext.client): return
 
         if httpContext.request.httpMethod == HttpHead:
             await httpContext.client.send(headers)
