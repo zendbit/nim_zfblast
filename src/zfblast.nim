@@ -290,7 +290,8 @@ proc send*(
 
     echo isNil(httpContext.client)
     if httpContext.request.headers.len == 0:
-        httpContext.client.close()
+        if not httpContext.client.isClosed():
+            httpContext.client.close()
         return
 
     var contentBody: string = ""
@@ -338,7 +339,7 @@ proc send*(
     httpContext.clear()
 
     if not isKeepAlive and (not httpContext.client.isClosed()):
-        httpContext.client.close
+        httpContext.client.close()
 
     # show debug
     if self.debug:
@@ -416,7 +417,8 @@ proc clientHandler(
 
                     #httpContext.response.httpCode = Http501
                     #await self.send(httpContext)
-                    client.close()
+                    if not client.isClosed():
+                        client.close()
                     return
 
                 var protocol = "http"
@@ -438,7 +440,8 @@ proc clientHandler(
 
                 #httpContext.response.httpCode = Http400
                 #await self.send(httpContext)
-                client.close()
+                if not client.isClosed():
+                    client.close()
                 return
 
             parseStep = ContentParseStep.Header
@@ -536,7 +539,8 @@ proc clientHandler(
         else:
             #httpContext.response.httpCode = Http411
             #await self.send(httpContext)
-            client.close()
+            if not client.isClosed():
+                client.close()
             return
 
     if self.debug:
