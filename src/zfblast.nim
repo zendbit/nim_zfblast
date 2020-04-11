@@ -288,12 +288,6 @@ proc send*(
     self: ZFBlast,
     httpContext: HttpContext): Future[void] {.async.} =
 
-    echo isNil(httpContext.client)
-    if httpContext.request.headers.len == 0:
-        if not httpContext.client.isClosed():
-            httpContext.client.close()
-        return
-
     var contentBody: string = ""
     let isKeepAlive = self.isKeepAlive(httpContext)
 
@@ -326,9 +320,6 @@ proc send*(
 
     headers &= CRLF
 
-    if isNil(httpContext.client) or
-        httpContext.client.isClosed(): return
-
     if httpContext.request.httpMethod == HttpHead:
         await httpContext.client.send(headers)
 
@@ -338,8 +329,8 @@ proc send*(
     # clean up all string stream request and response
     httpContext.clear()
 
-    if not isKeepAlive and (not httpContext.client.isClosed()):
-        httpContext.client.close()
+    #if not isKeepAlive and (not httpContext.client.isClosed()):
+    #    httpContext.client.close()
 
     # show debug
     if self.debug:
@@ -415,10 +406,8 @@ proc clientHandler(
                             echo "Bad request cannot process request."
                             echo &"{reqParts[0]} not implemented.")
 
-                    #httpContext.response.httpCode = Http501
-                    #await self.send(httpContext)
-                    if not client.isClosed():
-                        client.close()
+                    httpContext.response.httpCode = Http501
+                    await self.send(httpContext)
                     return
 
                 var protocol = "http"
@@ -438,10 +427,8 @@ proc clientHandler(
                         echo "Bad request cannot process request."
                         echo &"Wrong request header format.")
 
-                #httpContext.response.httpCode = Http400
-                #await self.send(httpContext)
-                if not client.isClosed():
-                    client.close()
+                httpContext.response.httpCode = Http400
+                await self.send(httpContext)
                 return
 
             parseStep = ContentParseStep.Header
@@ -537,10 +524,8 @@ proc clientHandler(
             ]#
 
         else:
-            #httpContext.response.httpCode = Http411
-            #await self.send(httpContext)
-            if not client.isClosed():
-                client.close()
+            httpContext.response.httpCode = Http411
+            await self.send(httpContext)
             return
 
     if self.debug:
