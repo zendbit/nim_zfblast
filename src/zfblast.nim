@@ -330,7 +330,7 @@ proc send*(
             await httpContext.client.send(headers)
 
         else:
-            echo &"is nil httpCLient {isNil(httpContext.client)}"
+            echo &"is nil httpCLient {isNil(httpContext.client.isClosed())}"
             echo &"is nil httpCLient {headers}"
             await httpContext.client.send(headers & contentBody)
 
@@ -339,7 +339,7 @@ proc send*(
         # clean up all string stream request and response
         httpContext.clear()
 
-        if not isKeepAlive and (not httpContext.client.isClosed):
+        if not isKeepAlive and (not httpContext.client.isClosed()):
             httpContext.client.close
 
         # show debug
