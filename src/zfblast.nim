@@ -322,11 +322,18 @@ proc send*(
 
         if isNil(httpContext.client): return
 
+        echo ">>>>>>>>"
+        echo &"is nil httpCLient {isNil(httpContext.client)}"
+
         if httpContext.request.httpMethod == HttpHead:
             await httpContext.client.send(headers)
 
         else:
+            echo &"is nil httpCLient {isNil(httpContext.client)}"
+            echo &"is nil httpCLient {headers}"
             await httpContext.client.send(headers & contentBody)
+
+        echo "end >>>>>>>"
 
         # clean up all string stream request and response
         httpContext.clear()
