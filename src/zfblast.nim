@@ -320,17 +320,18 @@ proc send*(
 
     headers &= CRLF
 
-    if httpContext.request.httpMethod == HttpHead:
-        await httpContext.client.send(headers)
+    if not httpContext.client.isClosed():
+        if httpContext.request.httpMethod == HttpHead:
+            await httpContext.client.send(headers)
 
-    else:
-        await httpContext.client.send(headers & contentBody)
+        else:
+            await httpContext.client.send(headers & contentBody)
+
+    if not isKeepAlive and (not httpContext.client.isClosed()):
+        httpContext.client.close()
 
     # clean up all string stream request and response
     httpContext.clear()
-
-    #if not isKeepAlive and (not httpContext.client.isClosed()):
-    #    httpContext.client.close()
 
     # show debug
     if self.debug:
