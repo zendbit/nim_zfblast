@@ -558,32 +558,30 @@ proc clientListener(
     client: AsyncSocket,
     callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
 
-    # setup http context
-    #let (clientHost, clientPort) = client.getPeerAddr
-    let httpContext = newHttpContext(
-        client = client,
-        keepAliveTimeout = self.keepAliveTimeout,
-        keepAliveMax = self.keepAliveMax)
-    
-    httpContext.send = proc (ctx: HttpContext): Future[void] {.async.} =
-        await self.send(ctx)
+    try:
+        # setup http context
+        #let (clientHost, clientPort) = client.getPeerAddr
+        let httpContext = newHttpContext(
+            client = client,
+            keepAliveTimeout = self.keepAliveTimeout,
+            keepAliveMax = self.keepAliveMax)
+        
+        httpContext.send = proc (ctx: HttpContext): Future[void] {.async.} =
+            await self.send(ctx)
 
-    while not httpContext.client.isClosed():
-        try:
+        while not httpContext.client.isClosed():
             await self.clientHandler(httpContext, callback)
 
-        except Exception as ex:
-            # show debug
-            if self.debug:
-                asyncCheck dbg(proc () =
-                    echo ""
-                    echo "#== start"
-                    echo "Client connection closed, accept new session."
-                    echo ex.msg
-                    echo "#== end"
-                    echo "")
-
-            break
+    except Exception as ex:
+        # show debug
+        if self.debug:
+            asyncCheck dbg(proc () =
+                echo ""
+                echo "#== start"
+                echo "Client connection closed, accept new session."
+                echo ex.msg
+                echo "#== end"
+                echo "")
 
 # serve unscure connection (http)
 proc doServe(
