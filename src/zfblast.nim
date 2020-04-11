@@ -604,7 +604,7 @@ proc doServe(
 
         while true:
             try:
-                let client = deepCopy(await self.server.accept())
+                let client = await self.server.accept()
                 asyncCheck self.clientListener(client, callback)
 
             except Exception as ex:
@@ -635,7 +635,7 @@ when defineSsl:
 
             while true:
                 try:
-                    let client = deepCopy(await self.sslServer.accept())
+                    let client = await self.sslServer.accept()
                     let (host, port) = self.sslServer.getLocalAddr()
 
                     var verifyMode = SslCVerifyMode.CVerifyNone
