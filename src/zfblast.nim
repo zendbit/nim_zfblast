@@ -320,7 +320,8 @@ proc send*(
 
         headers &= CRLF
 
-        if isNil(httpContext.client): return
+        if isNil(httpContext.client) or
+            httpContext.client.isClosed(): return
 
         echo ">>>>>>>>"
         echo &"is nil httpCLient {isNil(httpContext.client)}"
