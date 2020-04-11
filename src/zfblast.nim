@@ -421,8 +421,9 @@ proc clientHandler(
                             echo "Bad request cannot process request."
                             echo &"{reqParts[0]} not implemented.")
 
-                    httpContext.response.httpCode = Http501
-                    await self.send(httpContext)
+                    #httpContext.response.httpCode = Http501
+                    #await self.send(httpContext)
+                    client.close()
                     return
 
                 var protocol = "http"
@@ -442,8 +443,9 @@ proc clientHandler(
                         echo "Bad request cannot process request."
                         echo &"Wrong request header format.")
 
-                httpContext.response.httpCode = Http400
-                await self.send(httpContext)
+                #httpContext.response.httpCode = Http400
+                #await self.send(httpContext)
+                client.close()
                 return
 
             parseStep = ContentParseStep.Header
@@ -539,8 +541,9 @@ proc clientHandler(
             ]#
 
         else:
-            httpContext.response.httpCode = Http411
-            await self.send(httpContext)
+            #httpContext.response.httpCode = Http411
+            #await self.send(httpContext)
+            client.closed()
             return
 
     if self.debug:
@@ -552,7 +555,7 @@ proc clientHandler(
     if not isNil(callback):
         await callback(httpContext)
 
-    elif not httpContext.client.isClosed:
+    elif not httpContext.client.isClosed():
         httpContext.response.httpCode = Http200
         await self.send(httpContext)
 
@@ -574,7 +577,20 @@ proc clientListener(
         await self.send(ctx)
 
     while not httpContext.client.isClosed():
-        await self.clientHandler(httpContext, callback)
+        try:
+            await self.clientHandler(httpContext, callback)
+
+        except:
+            # show debug
+            if self.debug:
+                asyncCheck dbg(proc () =
+                    echo ""
+                    echo "#== start"
+                    echo "Client connection closed, accept new session."
+                    echo "#== end"
+                    echo "")
+
+            break
 
 # serve unscure connection (http)
 proc doServe(
@@ -591,8 +607,19 @@ proc doServe(
         echo &"Listening non secure (plain) on http://{host}:{port}"
 
         while true:
-            let client = deepCopy(await self.server.accept())
-            asyncCheck self.clientListener(client, callback)
+            try:
+                let client = deepCopy(await self.server.accept())
+                asyncCheck self.clientListener(client, callback)
+
+            except:
+                # show debug
+                if self.debug:
+                    asyncCheck dbg(proc () =
+                        echo ""
+                        echo "#== start"
+                        echo "Failed to serve."
+                        echo "#== end"
+                        echo "")
 
 # serve secure connection (https)
 when defineSsl:
@@ -610,22 +637,33 @@ when defineSsl:
             echo &"Listening secure on https://{host}:{port}"
 
             while true:
-                let client = deepCopy(await self.sslServer.accept())
-                let (host, port) = self.sslServer.getLocalAddr()
+                try:
+                    let client = deepCopy(await self.sslServer.accept())
+                    let (host, port) = self.sslServer.getLocalAddr()
 
-                var verifyMode = SslCVerifyMode.CVerifyNone
-                if self.sslSettings.verify:
-                    verifyMode = SslCVerifyMode.CVerifyPeer
+                    var verifyMode = SslCVerifyMode.CVerifyNone
+                    if self.sslSettings.verify:
+                        verifyMode = SslCVerifyMode.CVerifyPeer
 
-                let sslContext = newContext(
-                    verifyMode = verifyMode,
-                    certFile = self.sslSettings.certFile,
-                    keyFile = self.sslSettings.keyFile)
+                    let sslContext = newContext(
+                        verifyMode = verifyMode,
+                        certFile = self.sslSettings.certFile,
+                        keyFile = self.sslSettings.keyFile)
 
-                wrapConnectedSocket(sslContext, client,
-                    SslHandshakeType.handshakeAsServer, &"{host}:{port}")
+                    wrapConnectedSocket(sslContext, client,
+                        SslHandshakeType.handshakeAsServer, &"{host}:{port}")
 
-                asyncCheck self.clientListener(client, callback)
+                    asyncCheck self.clientListener(client, callback)
+
+                except:
+                    # show debug
+                    if self.debug:
+                        asyncCheck dbg(proc () =
+                            echo ""
+                            echo "#== start"
+                            echo "Failed to serve."
+                            echo "#== end"
+                            echo "")
 
 # serve the server
 # will have secure and unsecure connection if SslSettings given
