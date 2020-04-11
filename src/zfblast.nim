@@ -354,202 +354,206 @@ proc clientHandler(
     self: ZFBlast, httpContext: HttpContext,
     callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
 
-    let client = httpContext.client
+    try:
+        let client = httpContext.client
 
-    # show debug
-    if self.debug:
-        let (clientHost, clientPort) = client.getPeerAddr
-        asyncCheck dbg(proc () =
-            echo ""
-            echo "#== start"
-            echo "Process incoming request from client"
-            echo &"Client address  : {clientHost}"
-            echo &"Client port     : {clientPort}"
-            echo &"Date            : " &
-                format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & " GMT"
-            echo "")
+        # show debug
+        if self.debug:
+            let (clientHost, clientPort) = client.getPeerAddr
+            asyncCheck dbg(proc () =
+                echo ""
+                echo "#== start"
+                echo "Process incoming request from client"
+                echo &"Client address  : {clientHost}"
+                echo &"Client port     : {clientPort}"
+                echo &"Date            : " &
+                    format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & " GMT"
+                echo "")
 
-    # parse step
-    var parseStep = ContentParseStep.ReqMethod
-    while true:
-        let line = await client.recvLine()
-        
-        case parseStep
-        of ContentParseStep.ReqMethod:
-            let reqParts = line.strip().split(" ")
-            if reqParts.len == 3:
-                case reqParts[0]
-                of "GET":
-                    httpContext.request.httpMethod = HttpGet
+        # parse step
+        var parseStep = ContentParseStep.ReqMethod
+        while true:
+            let line = await client.recvLine()
+            
+            case parseStep
+            of ContentParseStep.ReqMethod:
+                let reqParts = line.strip().split(" ")
+                if reqParts.len == 3:
+                    case reqParts[0]
+                    of "GET":
+                        httpContext.request.httpMethod = HttpGet
 
-                of "POST":
-                    httpContext.request.httpMethod = HttpPost
+                    of "POST":
+                        httpContext.request.httpMethod = HttpPost
 
-                of "PATCH":
-                    httpContext.request.httpMethod = HttpPatch
+                    of "PATCH":
+                        httpContext.request.httpMethod = HttpPatch
 
-                of "PUT":
-                    httpContext.request.httpMethod = HttpPut
+                    of "PUT":
+                        httpContext.request.httpMethod = HttpPut
 
-                of "DELETE":
-                    httpContext.request.httpMethod = HttpDelete
+                    of "DELETE":
+                        httpContext.request.httpMethod = HttpDelete
 
-                of "OPTIONS":
-                    httpContext.request.httpMethod = HttpOptions
+                    of "OPTIONS":
+                        httpContext.request.httpMethod = HttpOptions
 
-                of "TRACE":
-                    httpContext.request.httpMethod = HttpTrace
+                    of "TRACE":
+                        httpContext.request.httpMethod = HttpTrace
 
-                of "HEAD":
-                    httpContext.request.httpMethod = HttpHead
+                    of "HEAD":
+                        httpContext.request.httpMethod = HttpHead
 
-                of "CONNECT":
-                    httpContext.request.httpMethod = HttpConnect
+                    of "CONNECT":
+                        httpContext.request.httpMethod = HttpConnect
+
+                    else:
+                        # show debug
+                        if self.debug:
+                            asyncCheck dbg(proc () =
+                                echo "Bad request cannot process request."
+                                echo &"{reqParts[0]} not implemented.")
+
+                        #httpContext.response.httpCode = Http501
+                        #await self.send(httpContext)
+                        client.close()
+                        return
+
+                    var protocol = "http"
+                    if client.isSsl:
+                        protocol = "https"
+                    
+                    let (peerAddr, _) = client.getLocalAddr
+                    httpContext.request.url = parseUri3(reqParts[1])
+                    httpContext.request.url.setScheme(protocol)
+                    httpContext.request.url.setDomain(peerAddr)
+                    httpContext.request.httpVersion = reqParts[2]
 
                 else:
                     # show debug
                     if self.debug:
                         asyncCheck dbg(proc () =
                             echo "Bad request cannot process request."
-                            echo &"{reqParts[0]} not implemented.")
+                            echo &"Wrong request header format.")
 
-                    #httpContext.response.httpCode = Http501
+                    #httpContext.response.httpCode = Http400
                     #await self.send(httpContext)
                     client.close()
                     return
 
-                var protocol = "http"
-                if client.isSsl:
-                    protocol = "https"
-                
-                let (peerAddr, _) = client.getLocalAddr
-                httpContext.request.url = parseUri3(reqParts[1])
-                httpContext.request.url.setScheme(protocol)
-                httpContext.request.url.setDomain(peerAddr)
-                httpContext.request.httpVersion = reqParts[2]
+                parseStep = ContentParseStep.Header
 
-            else:
-                # show debug
+                #show debug
                 if self.debug:
                     asyncCheck dbg(proc () =
-                        echo "Bad request cannot process request."
-                        echo &"Wrong request header format.")
+                        echo line)
 
-                #httpContext.response.httpCode = Http400
+            of ContentParseStep.Header:
+                # pull reqeust @@ -430,11 +430,8 @@ proc clientHandler(
+                # qbradley
+                # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
+                let headers = parseHeader(line.strip())
+                if headers.key.strip() != "" and headers.value.len != 0:
+                    httpContext.request.headers[headers.key] = headers.value
+                    if headers.key.toLower() == "host":
+                        httpContext.request.url.setDomain(headers.value.join(", ").split(":")[0])
+
+                #show debug
+                if self.debug:
+                    asyncCheck dbg(proc () =
+                        echo line)
+
+                if line == CRLF:
+                    # if in post, put and patch simply set parse body step
+                    if httpContext.request.httpMethod in
+                            [HttpPost, HttpPut, HttpPatch]:
+                        parseStep = ContentParseStep.Body
+
+                    break
+
+            else:
+                break
+
+        if parseStep == ContentParseStep.Body:
+            #if bodyBoundary == "":
+            #    bodyBoundary = line
+
+            #httpContext.request.body.writeLine(line)
+            let contentLength = getHttpHeaderValues(
+                "content-length",
+                httpContext.request.headers)
+
+            # check body content
+            if contentLength != "":
+                let bodyLen = parseInt(contentLength)
+
+                # if body content larger than server can handle
+                # return 413 code
+                if bodyLen > self.maxBodyLength:
+                    # show debug
+                    if self.debug:
+                        asyncCheck dbg(proc () =
+                            echo "Body request to large server cannot handle."
+                            echo &"Only {self.maxBodyLength} bytes allowed."
+                            echo "Should change maxBodyLength value in settings.")
+
+                    httpContext.response.httpCode = Http413
+                    await self.send(httpContext)
+                    return
+
+                httpContext.request.body = await client.recv(bodyLen)
+
+                #show debug
+                #[
+                if self.debug:
+                    let bodySeq = httpContext.request.readBody.split("\n")
+                    let contentType = httpContext.request.headers
+                        .getOrDefault("Content-Type")
+                    var bodyBoundary = ""
+                    var isAttachment = false
+                    for bodyLine in bodySeq:
+                        let bodyLineStrip = bodyLine.strip
+                        if contentType.startsWith("multipart/form-data"):
+                            if bodyBoundary == "" and bodyLineStrip != "":
+                                bodyBoundary = bodyLineStrip
+
+                        if bodyLineStrip.startsWith("Content-Disposition") and
+                                bodyLineStrip.contains("name=") and
+                                bodyLineStrip.contains("filename="):
+                            isAttachment = true
+
+                        elif bodyLineStrip.startsWith(bodyBoundary):
+                            isAttachment = false
+
+                        if bodyLineStrip.startsWith(bodyBoundary) or
+                                bodyLineStrip.startsWith("Content-Disposition") or
+                                bodyLineStrip.startsWith("Content-Type") or
+                                bodyLineStrip == "" or
+                                (bodyLineStrip != "" and (not isAttachment)):
+                            echo bodyLineStrip
+                ]#
+
+            else:
+                #httpContext.response.httpCode = Http411
                 #await self.send(httpContext)
                 client.close()
                 return
 
-            parseStep = ContentParseStep.Header
+        if self.debug:
+            asyncCheck dbg(proc () =
+                echo "#== end"
+                echo "")
 
-            #show debug
-            if self.debug:
-                asyncCheck dbg(proc () =
-                    echo line)
+        # call the callback
+        if not isNil(callback):
+            await callback(httpContext)
 
-        of ContentParseStep.Header:
-            # pull reqeust @@ -430,11 +430,8 @@ proc clientHandler(
-            # qbradley
-            # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
-            let headers = parseHeader(line.strip())
-            if headers.key.strip() != "" and headers.value.len != 0:
-                httpContext.request.headers[headers.key] = headers.value
-                if headers.key.toLower() == "host":
-                    httpContext.request.url.setDomain(headers.value.join(", ").split(":")[0])
+        elif not httpContext.client.isClosed():
+            httpContext.response.httpCode = Http200
+            await self.send(httpContext)
 
-            #show debug
-            if self.debug:
-                asyncCheck dbg(proc () =
-                    echo line)
-
-            if line == CRLF:
-                # if in post, put and patch simply set parse body step
-                if httpContext.request.httpMethod in
-                        [HttpPost, HttpPut, HttpPatch]:
-                    parseStep = ContentParseStep.Body
-
-                break
-
-        else:
-            break
-
-    if parseStep == ContentParseStep.Body:
-        #if bodyBoundary == "":
-        #    bodyBoundary = line
-
-        #httpContext.request.body.writeLine(line)
-        let contentLength = getHttpHeaderValues(
-            "content-length",
-            httpContext.request.headers)
-
-        # check body content
-        if contentLength != "":
-            let bodyLen = parseInt(contentLength)
-
-            # if body content larger than server can handle
-            # return 413 code
-            if bodyLen > self.maxBodyLength:
-                # show debug
-                if self.debug:
-                    asyncCheck dbg(proc () =
-                        echo "Body request to large server cannot handle."
-                        echo &"Only {self.maxBodyLength} bytes allowed."
-                        echo "Should change maxBodyLength value in settings.")
-
-                httpContext.response.httpCode = Http413
-                await self.send(httpContext)
-                return
-
-            httpContext.request.body = await client.recv(bodyLen)
-
-            #show debug
-            #[
-            if self.debug:
-                let bodySeq = httpContext.request.readBody.split("\n")
-                let contentType = httpContext.request.headers
-                    .getOrDefault("Content-Type")
-                var bodyBoundary = ""
-                var isAttachment = false
-                for bodyLine in bodySeq:
-                    let bodyLineStrip = bodyLine.strip
-                    if contentType.startsWith("multipart/form-data"):
-                        if bodyBoundary == "" and bodyLineStrip != "":
-                            bodyBoundary = bodyLineStrip
-
-                    if bodyLineStrip.startsWith("Content-Disposition") and
-                            bodyLineStrip.contains("name=") and
-                            bodyLineStrip.contains("filename="):
-                        isAttachment = true
-
-                    elif bodyLineStrip.startsWith(bodyBoundary):
-                        isAttachment = false
-
-                    if bodyLineStrip.startsWith(bodyBoundary) or
-                            bodyLineStrip.startsWith("Content-Disposition") or
-                            bodyLineStrip.startsWith("Content-Type") or
-                            bodyLineStrip == "" or
-                            (bodyLineStrip != "" and (not isAttachment)):
-                        echo bodyLineStrip
-            ]#
-
-        else:
-            #httpContext.response.httpCode = Http411
-            #await self.send(httpContext)
-            client.close()
-            return
-
-    if self.debug:
-        asyncCheck dbg(proc () =
-            echo "#== end"
-            echo "")
-
-    # call the callback
-    if not isNil(callback):
-        await callback(httpContext)
-
-    elif not httpContext.client.isClosed():
-        httpContext.response.httpCode = Http200
-        await self.send(httpContext)
+    except:
+        discard
 
 # handle client listener
 # will listen until the client socket closed
