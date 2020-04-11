@@ -327,11 +327,19 @@ proc send*(
     if isNil(httpContext.client) or
         httpContext.client.isClosed(): return
 
+    echo ">>>>>>>>"
+    echo &"{httpContext.request.headers}"
+    echo &"is nil httpCLient {isNil(httpContext.client)}"
+
     if httpContext.request.httpMethod == HttpHead:
         await httpContext.client.send(headers)
 
     else:
+        echo &"is nil httpCLient {httpContext.client.isClosed()}"
+        echo &"is nil httpCLient {headers}"
         await httpContext.client.send(headers & contentBody)
+
+    echo "end >>>>>>>"
 
     # clean up all string stream request and response
     httpContext.clear()
@@ -579,7 +587,7 @@ proc clientListener(
                     echo ""
                     echo "#== start"
                     echo "Client connection closed, accept new session."
-                    #echo ex.msg
+                    echo ex.msg
                     echo "#== end"
                     echo "")
 
@@ -611,7 +619,7 @@ proc doServe(
                         echo ""
                         echo "#== start"
                         echo "Failed to serve."
-                        #echo ex.msg
+                        echo ex.msg
                         echo "#== end"
                         echo "")
 
@@ -656,7 +664,7 @@ when defineSsl:
                             echo ""
                             echo "#== start"
                             echo "Failed to serve."
-                            #echo ex.msg
+                            echo ex.msg
                             echo "#== end"
                             echo "")
 
