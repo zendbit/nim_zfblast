@@ -580,13 +580,14 @@ proc clientListener(
         try:
             await self.clientHandler(httpContext, callback)
 
-        except:
+        except Exception as ex:
             # show debug
             if self.debug:
                 asyncCheck dbg(proc () =
                     echo ""
                     echo "#== start"
                     echo "Client connection closed, accept new session."
+                    echo ex.msg
                     echo "#== end"
                     echo "")
 
@@ -611,13 +612,14 @@ proc doServe(
                 let client = deepCopy(await self.server.accept())
                 asyncCheck self.clientListener(client, callback)
 
-            except:
+            except Exception as ex:
                 # show debug
                 if self.debug:
                     asyncCheck dbg(proc () =
                         echo ""
                         echo "#== start"
                         echo "Failed to serve."
+                        echo ex.msg
                         echo "#== end"
                         echo "")
 
@@ -655,13 +657,14 @@ when defineSsl:
 
                     asyncCheck self.clientListener(client, callback)
 
-                except:
+                except Exception as ex:
                     # show debug
                     if self.debug:
                         asyncCheck dbg(proc () =
                             echo ""
                             echo "#== start"
                             echo "Failed to serve."
+                            echo ex.msg
                             echo "#== end"
                             echo "")
 
