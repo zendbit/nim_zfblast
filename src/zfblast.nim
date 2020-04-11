@@ -579,7 +579,7 @@ proc clientListener(
                     echo ""
                     echo "#== start"
                     echo "Client connection closed, accept new session."
-                    echo ex.msg
+                    #echo ex.msg
                     echo "#== end"
                     echo "")
 
@@ -611,7 +611,7 @@ proc doServe(
                         echo ""
                         echo "#== start"
                         echo "Failed to serve."
-                        echo ex.msg
+                        #echo ex.msg
                         echo "#== end"
                         echo "")
 
@@ -656,7 +656,7 @@ when defineSsl:
                             echo ""
                             echo "#== start"
                             echo "Failed to serve."
-                            echo ex.msg
+                            #echo ex.msg
                             echo "#== end"
                             echo "")
 
