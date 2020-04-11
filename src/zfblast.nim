@@ -288,6 +288,7 @@ proc send*(
     self: ZFBlast,
     httpContext: HttpContext): Future[void] {.async.} =
 
+    echo isNil(httpContext.client)
     if httpContext.request.headers.len == 0:
         httpContext.client.close()
         return
