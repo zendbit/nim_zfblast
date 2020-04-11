@@ -610,8 +610,19 @@ proc doServe(
         echo &"Listening non secure (plain) on http://{host}:{port}"
 
         while true:
-            let client = await self.server.accept
-            asyncCheck self.clientListener(client, callback)
+            try:
+                let client = deepCopy(await self.server.accept())
+                asyncCheck self.clientListener(client, callback)
+
+            except:
+                # show debug
+                if self.debug:
+                    asyncCheck dbg(proc () =
+                        echo ""
+                        echo "#== start"
+                        echo "Failed to serve."
+                        echo "#== end"
+                        echo "")
 
 # serve secure connection (https)
 when defineSsl:
@@ -629,22 +640,33 @@ when defineSsl:
             echo &"Listening secure on https://{host}:{port}"
 
             while true:
-                let client = await self.sslServer.accept
-                let (host, port) = self.sslServer.getLocalAddr
+                try:
+                    let client = deepCopy(await self.sslServer.accept())
+                    let (host, port) = self.sslServer.getLocalAddr()
 
-                var verifyMode = SslCVerifyMode.CVerifyNone
-                if self.sslSettings.verify:
-                    verifyMode = SslCVerifyMode.CVerifyPeer
+                    var verifyMode = SslCVerifyMode.CVerifyNone
+                    if self.sslSettings.verify:
+                        verifyMode = SslCVerifyMode.CVerifyPeer
 
-                let sslContext = newContext(
-                    verifyMode = verifyMode,
-                    certFile = self.sslSettings.certFile,
-                    keyFile = self.sslSettings.keyFile)
+                    let sslContext = newContext(
+                        verifyMode = verifyMode,
+                        certFile = self.sslSettings.certFile,
+                        keyFile = self.sslSettings.keyFile)
 
-                wrapConnectedSocket(sslContext, client,
-                    SslHandshakeType.handshakeAsServer, &"{host}:{port}")
+                    wrapConnectedSocket(sslContext, client,
+                        SslHandshakeType.handshakeAsServer, &"{host}:{port}")
 
-                asyncCheck self.clientListener(client, callback)
+                    asyncCheck self.clientListener(client, callback)
+
+                except:
+                    # show debug
+                    if self.debug:
+                        asyncCheck dbg(proc () =
+                            echo ""
+                            echo "#== start"
+                            echo "Failed to serve."
+                            echo "#== end"
+                            echo "")
 
 # serve the server
 # will have secure and unsecure connection if SslSettings given
