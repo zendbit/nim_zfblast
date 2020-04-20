@@ -45,6 +45,7 @@ let zfb = newZFBlast(
         verify = false,
         port = Port(8443)
     ))
+    
 waitfor zfb.serve(proc (ctx: HttpContext): Future[void] {.async.} =
     case ctx.request.url.getPath
     # web socket example
