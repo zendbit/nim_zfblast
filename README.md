@@ -10,6 +10,7 @@ Serving in 1-2 miliseconds for persistent connection.
 
 read persistent connection RFC (https://tools.ietf.org/html/rfc2616)
 
+From version 0.1.6 already support websocket
 ***Support websocket*** RFC (https://tools.ietf.org/html/rfc6455)
 
 Nimble installation
