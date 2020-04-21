@@ -129,7 +129,7 @@ proc `$`*(self: WSFrame): string =
     # mask(1)|payloadlen(7)
     var payloadLenFlag:uint8
     var extPayloadLen:string
-    if self.payloadLen.uint8 >= 0x7e:
+    if self.payloadLen.int >= 0x7e:
         # 16bit length
         if self.payloadLen <= high(uint16):
             payloadLenFlag = 0x7e
