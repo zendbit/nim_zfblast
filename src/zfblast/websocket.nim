@@ -1,239 +1,239 @@
 
 #[
-    ZendFlow web framework for nim language
-    This framework if free to use and to modify
-    License: BSD
-    Author: Amru Rosyada
-    Email: amru.rosyada@gmail.com
-    Git: https://github.com/zendbit
+  ZendFlow web framework for nim language
+  This framework if free to use and to modify
+  License: BSD
+  Author: Amru Rosyada
+  Email: amru.rosyada@gmail.com
+  Git: https://github.com/zendbit
 
-    HTTP/1.1 implementation in nim lang depend on RFC (https://tools.ietf.org/html/rfc2616)
-    Supporting Keep Alive to maintain persistent connection.
+  HTTP/1.1 implementation in nim lang depend on RFC (https://tools.ietf.org/html/rfc2616)
+  Supporting Keep Alive to maintain persistent connection.
 ]#
 
 import
-    random,
-    sha1,
-    times,
-    asyncnet,
-    asyncdispatch,
-    httpCore,
-    constants,
-    strformat
+  random,
+  sha1,
+  times,
+  asyncnet,
+  asyncdispatch,
+  httpCore,
+  constants,
+  strformat
 
 type
-    WSState* = enum
-        HandShake,
-        Open,
-        Close
+  WSState* = enum
+    HandShake,
+    Open,
+    Close
 
-    WSStatusCode* = enum
-        Ok = 1000,
-        GoingAway = 1001,
-        BadProtocol = 1002,
-        Refused = 1003,
-        BadPayload = 1007,
-        ViolatesPolicy = 1008,
-        PayloadToBig = 1009,
-        HandShakeFailed = 1010
+  WSStatusCode* = enum
+    Ok = 1000,
+    GoingAway = 1001,
+    BadProtocol = 1002,
+    Refused = 1003,
+    BadPayload = 1007,
+    ViolatesPolicy = 1008,
+    PayloadToBig = 1009,
+    HandShakeFailed = 1010
 
-    WSOpCode* = enum
-        ContinuationFrame = 0x0
-        TextFrame = 0x1
-        BinaryFrame = 0x2
-        ConnectionClose = 0x8
-        Ping = 0x9
-        Pong = 0xA
+  WSOpCode* = enum
+    ContinuationFrame = 0x0
+    TextFrame = 0x1
+    BinaryFrame = 0x2
+    ConnectionClose = 0x8
+    Ping = 0x9
+    Pong = 0xA
 
-    WSFrame* = ref object
-        fin*: uint8
-        rsv1*: uint8
-        rsv2*: uint8
-        rsv3*: uint8
-        opCode*: uint8
-        mask*: uint8
-        payloadLen*: uint64
-        maskKey*: string
-        payloadData*: string
+  WSFrame* = ref object
+    fin*: uint8
+    rsv1*: uint8
+    rsv2*: uint8
+    rsv3*: uint8
+    opCode*: uint8
+    mask*: uint8
+    payloadLen*: uint64
+    maskKey*: string
+    payloadData*: string
 
-    WebSocket* = ref object
-        client*: AsyncSocket
-        state*: WSState
-        inFrame*: WSFrame
-        outFrame*: WSFrame
-        statusCode*: WSStatusCode
-        hashId*: string
-        handShakeResHeaders*: HttpHeaders
-        handShakeReqHeaders*: HttpHeaders
+  WebSocket* = ref object
+    client*: AsyncSocket
+    state*: WSState
+    inFrame*: WSFrame
+    outFrame*: WSFrame
+    statusCode*: WSStatusCode
+    hashId*: string
+    handShakeResHeaders*: HttpHeaders
+    handShakeReqHeaders*: HttpHeaders
 
 #[
-    WSFrame type procedures
+  WSFrame type procedures
 ]#
 proc generateMaskKey(self: WSFrame) =
-    var maskKey = ""
-    for i in 0..<4:
-        maskKey &= chr(rand(254))
+  var maskKey = ""
+  for i in 0..<4:
+    maskKey &= chr(rand(254))
 
-    self.mask = 0x1
-    self.maskKey = maskKey
+  self.mask = 0x1
+  self.maskKey = maskKey
 
 proc parseHeaders*(
-    self: WSFrame,
-    headers: string) =
+  self: WSFrame,
+  headers: string) =
 
-    if headers.len != 0:
-        let b0 = headers[0].uint8
-        let b1 = headers[1].uint8
+  if headers.len != 0:
+    let b0 = headers[0].uint8
+    let b1 = headers[1].uint8
 
-        self.fin = (b0 and 0x80) shr 7
-        self.rsv1 = (b0 and (0x80 shr 1).uint8) shr 6
-        self.rsv2 = (b0 and (0x80 shr 2).uint8) shr 5
-        self.rsv3 = (b0 and (0x80 shr 3).uint8) shr 4
-        self.opCode = b0 and 0x0f
-        self.mask = (b1 and 0x80) shr 7
-        self.payloadLen = (b1 and 0x7f)
+    self.fin = (b0 and 0x80) shr 7
+    self.rsv1 = (b0 and (0x80 shr 1).uint8) shr 6
+    self.rsv2 = (b0 and (0x80 shr 2).uint8) shr 5
+    self.rsv3 = (b0 and (0x80 shr 3).uint8) shr 4
+    self.opCode = b0 and 0x0f
+    self.mask = (b1 and 0x80) shr 7
+    self.payloadLen = (b1 and 0x7f)
 
 proc parsePayloadLen*(
-    self: WSFrame,
-    payloadHeadersLen: string) =
+  self: WSFrame,
+  payloadHeadersLen: string) =
 
-    if payloadHeadersLen.len mod 2 == 0 and
-        payloadHeadersLen.len != 0:
-        var payloadLen:uint64 = 0
-        var shiftL = high(payloadHeadersLen)
-        for i in 0..high(payloadHeadersLen):
-            payloadLen += payloadHeadersLen[i].uint64 shl (shiftL*8)
-            dec(shiftL)
+  if payloadHeadersLen.len mod 2 == 0 and
+    payloadHeadersLen.len != 0:
+    var payloadLen:uint64 = 0
+    var shiftL = high(payloadHeadersLen)
+    for i in 0..high(payloadHeadersLen):
+      payloadLen += payloadHeadersLen[i].uint64 shl (shiftL*8)
+      dec(shiftL)
 
-        self.payloadLen = payloadLen
+    self.payloadLen = payloadLen
 
 proc encodeDecode*(self: WSFrame): string =
-    if self.mask != 0x0:
-        var decodedData = ""
-        for i in 0..<self.payloadLen:
-            decodedData &= chr(self.payloadData[i].uint8 xor self.maskKey[i mod 4].uint8)
+  if self.mask != 0x0:
+    var decodedData = ""
+    for i in 0..<self.payloadLen:
+      decodedData &= chr(self.payloadData[i].uint8 xor self.maskKey[i mod 4].uint8)
 
-        return decodedData
+    return decodedData
 
-    return self.payloadData
+  return self.payloadData
 
 proc `$`*(self: WSFrame): string =
-    var payloadData = ""
-    # fin(1)|rsv1(1)|rsv2(1)|rsv3(1)|opcode(4)
-    payloadData &= chr(
-        (self.fin shl 7) or
-        (self.rsv1 shl 6) or
-        (self.rsv2 shl 5) or
-        (self.rsv3 shl 4) or
-        self.opCode)
-    # mask(1)|payloadlen(7)
-    var payloadLenFlag:uint8
-    var extPayloadLen:string
-    if self.payloadLen.int >= 0x7e:
-        # 16bit length
-        if self.payloadLen <= high(uint16):
-            payloadLenFlag = 0x7e
-            for i in countdown(1, 0):
-                extPayloadLen.add(chr((self.payloadLen shr (i*8)) and 0xff))
+  var payloadData = ""
+  # fin(1)|rsv1(1)|rsv2(1)|rsv3(1)|opcode(4)
+  payloadData &= chr(
+    (self.fin shl 7) or
+    (self.rsv1 shl 6) or
+    (self.rsv2 shl 5) or
+    (self.rsv3 shl 4) or
+    self.opCode)
+  # mask(1)|payloadlen(7)
+  var payloadLenFlag:uint8
+  var extPayloadLen:string
+  if self.payloadLen.int >= 0x7e:
+    # 16bit length
+    if self.payloadLen <= high(uint16):
+      payloadLenFlag = 0x7e
+      for i in countdown(1, 0):
+        extPayloadLen.add(chr((self.payloadLen shr (i*8)) and 0xff))
 
-        # 64 bit length
-        else:
-            payloadLenFlag = 0x7f
-            for i in countdown(7, 0):
-                extPayloadLen.add(chr((self.payloadLen shr (i*8)) and 0xff))
-
+    # 64 bit length
     else:
-        payloadLenFlag = self.payloadLen.uint8
+      payloadLenFlag = 0x7f
+      for i in countdown(7, 0):
+        extPayloadLen.add(chr((self.payloadLen shr (i*8)) and 0xff))
 
-    # add mask and payload len flag
-    payloadData &= chr(
-        (self.mask shl 7) or
-        payloadLenFlag)
+  else:
+    payloadLenFlag = self.payloadLen.uint8
 
-    # add extended payload len
-    payloadData &= extPayloadLen
+  # add mask and payload len flag
+  payloadData &= chr(
+    (self.mask shl 7) or
+    payloadLenFlag)
 
-    # add mask if exist
-    if self.mask == 0x1:
-        payloadData &= self.maskKey
+  # add extended payload len
+  payloadData &= extPayloadLen
 
-    # add the payload data
-    payloadData &= self.encodeDecode()
+  # add mask if exist
+  if self.mask == 0x1:
+    payloadData &= self.maskKey
 
-    return payloadData
+  # add the payload data
+  payloadData &= self.encodeDecode()
+
+  return payloadData
 
 proc newWSFrame*(
-    fin: uint8,
-    opCode: uint8,
-    payloadData: string): WSFrame =
+  fin: uint8,
+  opCode: uint8,
+  payloadData: string): WSFrame =
 
-    let instance = WSFrame(
-        fin: fin,
-        rsv1: 0, rsv2: 0, rsv3:0,
-        opCode: opCode,
-        payloadData: payloadData)
+  let instance = WSFrame(
+    fin: fin,
+    rsv1: 0, rsv2: 0, rsv3:0,
+    opCode: opCode,
+    payloadData: payloadData)
 
-    # !!! this is may be raise as a bug
-    # !!! let see if it works for large data set
-    instance.payloadLen = payloadData.len.uint64
-    instance.generateMaskKey()
+  # !!! this is may be raise as a bug
+  # !!! let see if it works for large data set
+  instance.payloadLen = payloadData.len.uint64
+  instance.generateMaskKey()
 
-    return instance
+  return instance
 ###
 
 #[
-    WebSocket type procedures
+  WebSocket type procedures
 ]#
 proc newWebSocket*(
-    client: AsyncSocket,
-    state: WSState = WSState.HandShake,
-    statusCode: WSStatusCode = WSStatusCode.HandShakeFailed):
-    WebSocket =
+  client: AsyncSocket,
+  state: WSState = WSState.HandShake,
+  statusCode: WSStatusCode = WSStatusCode.HandShakeFailed):
+  WebSocket =
 
-    let hashId = now().utc().format("yyyy-MM-dd HH:mm:ss:ffffff")
-    return WebSocket(
-        state: state,
-        statusCode: statusCode,
-        hashId: compute(hashId).toBase64(),
-        handShakeResHeaders: newHttpHeaders())
+  let hashId = now().utc().format("yyyy-MM-dd HH:mm:ss:ffffff")
+  return WebSocket(
+    state: state,
+    statusCode: statusCode,
+    hashId: compute(hashId).toBase64(),
+    handShakeResHeaders: newHttpHeaders())
 
 proc handShake*(
-    self: WebSocket,
-    handShakeKey: string): Future[void] {.async.} =
+  self: WebSocket,
+  handShakeKey: string): Future[void] {.async.} =
 
-    if self.state == WSState.HandShake:
-        # do handshake process
-        if handShakeKey != "":
-            let acceptHandShakeKey =
-                compute(handShakeKey & WS_MAGIC_STRING).
-                toBase64()
+  if self.state == WSState.HandShake:
+    # do handshake process
+    if handShakeKey != "":
+      let acceptHandShakeKey =
+        compute(handShakeKey & WS_MAGIC_STRING).
+        toBase64()
 
-            var headers = ""
-            headers &= &"{HTTP_VER} 101 Switching Protocols{CRLF}"
-            headers &= &"Server: {SERVER_ID} {SERVER_VER}{CRLF}"
-            headers &= "Date: " &
-                format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & &" GMT{CRLF}"
-            headers &= &"Connection: Upgrade{CRLF}"
-            headers &= &"Upgrade: websocket{CRLF}"
-            headers &= &"Sec-WebSocket-Accept: {acceptHandShakeKey}{CRLF}"
+      var headers = ""
+      headers &= &"{HTTP_VER} 101 Switching Protocols{CRLF}"
+      headers &= &"Server: {SERVER_ID} {SERVER_VER}{CRLF}"
+      headers &= "Date: " &
+        format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & &" GMT{CRLF}"
+      headers &= &"Connection: Upgrade{CRLF}"
+      headers &= &"Upgrade: websocket{CRLF}"
+      headers &= &"Sec-WebSocket-Accept: {acceptHandShakeKey}{CRLF}"
 
-            # additional handshake header
-            for k, v in self.handShakeResHeaders.pairs:
-                headers &= &"{k}: {v}{CRLF}"
+      # additional handshake header
+      for k, v in self.handShakeResHeaders.pairs:
+        headers &= &"{k}: {v}{CRLF}"
 
-            headers &= CRLF
+      headers &= CRLF
 
-            # send handshare response
-            await self.client.send(headers)
+      # send handshare response
+      await self.client.send(headers)
 
 proc send*(self: WebSocket): Future[void] {.async.} =
 
-    await self.client.send($self.outFrame)
+  await self.client.send($self.outFrame)
 
 proc send*(
-    self: WebSocket,
-    frame: WSFrame): Future[void] {.async.} =
+  self: WebSocket,
+  frame: WSFrame): Future[void] {.async.} =
 
-    self.outFrame = frame
-    await self.client.send($self.outFrame)
+  self.outFrame = frame
+  await self.client.send($self.outFrame)
 ###
