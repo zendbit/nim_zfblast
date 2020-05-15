@@ -163,8 +163,8 @@ proc `$`*(self: WSFrame): string =
   return payloadData
 
 proc newWSFrame*(
-  fin: uint8,
-  opCode: uint8,
+  fin: uint8 = 0x1,
+  opCode: uint8 = WSOpCode.TextFrame.uint8,
   payloadData: string): WSFrame =
 
   let instance = WSFrame(
