@@ -344,9 +344,9 @@ proc webSocketHandler(
       # send ping with hashId
       # make sure the connection is created
       webSocket.outFrame = newWSFrame(
+        webSocket.hashId,
         1,
-        WSOpCode.Ping.uint8,
-        webSocket.hashId)
+        WSOpCode.Ping.uint8)
       await webSocket.send()
 
 # handle client connections
