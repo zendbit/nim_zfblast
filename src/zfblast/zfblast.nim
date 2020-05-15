@@ -281,8 +281,6 @@ proc webSocketHandler(
         webSocket.statusCode = WSStatusCode.PayloadToBig
         client.close()
 
-    echo &"payloadData {frame.encodeDecode()}"
-
     case frame.opCode
     of WSOpCode.Ping.uint8:
       # response the ping with same message buat change the opcode to pong
