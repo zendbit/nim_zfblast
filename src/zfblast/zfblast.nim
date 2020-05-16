@@ -183,12 +183,14 @@ proc send*(
 
   headers &= CRLF
 
-  if not client.isClosed():
-    if request.httpMethod == HttpHead:
-      await client.send(headers)
-
-    else:
-      await client.send(headers & contentBody)
+  try:
+    if not client.isClosed():
+      if request.httpMethod == HttpHead:
+        await client.send(headers)
+      else:
+        await client.send(headers & contentBody)
+  except Exception:
+    discard
 
   if not isKeepAlive and (not client.isClosed()):
     client.close()
