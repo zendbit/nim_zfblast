@@ -16,7 +16,7 @@ const
   # server header identifier
   SERVER_ID* = "ZFBlast (Nim)"
   # server build version
-  SERVER_VER* = "V0.1.4"
+  SERVER_VER* = "V0.1.8"
   # CRLF header token
   CRLF* = "\c\L"
   # websocket magic string
