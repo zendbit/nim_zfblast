@@ -17,10 +17,16 @@ import
   strformat,
   strutils,
   httpcore,
-  uri3,
   streams,
   times,
-  nativesockets,
+  nativesockets
+
+# nimble
+import
+  uri3
+
+# local
+import
   httpContext,
   websocket
 
@@ -704,6 +710,7 @@ if isMainModule:
     await ctx.resp
   )
 
+# std
 export
   asyncnet,
   asyncdispatch,
@@ -712,10 +719,16 @@ export
   strformat,
   strutils,
   httpcore,
-  uri3,
-  streams,
   times,
-  nativesockets,
+  streams,
+  nativesockets
+
+# nimble
+export
+  uri3
+
+# local
+export
   Request,
   Response,
   HttpContext,

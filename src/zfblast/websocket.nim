@@ -11,15 +11,22 @@
   Supporting Keep Alive to maintain persistent connection.
 ]#
 
+# std
 import
   random,
-  sha1,
   times,
   asyncnet,
   asyncdispatch,
   httpCore,
-  constants,
   strformat
+
+# nimble
+import
+  sha1
+
+# local
+import
+  constants
 
 type
   WSState* = enum

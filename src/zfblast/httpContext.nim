@@ -10,13 +10,20 @@
   Supporting Keep Alive to maintain persistent connection.
 ]#
 
+# std
 import
   asyncnet,
-  uri3,
   httpcore,
-  asyncdispatch,
-  websocket,
-  constants
+  asyncdispatch
+
+# nimble
+import
+  uri3
+
+# local
+import
+  constants,
+  websocket
 
 type
   # Request type
