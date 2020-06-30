@@ -408,10 +408,11 @@ proc clientHandler(
         if client.isSsl:
             protocol = "https"
 
-        let (peerAddr, _) = client.getLocalAddr
+        let (address, port) = client.getLocalAddr
         httpContext.request.url = parseUri3(reqParts[1])
         httpContext.request.url.setScheme(protocol)
-        httpContext.request.url.setDomain(peerAddr)
+        httpContext.request.url.setDomain(address)
+        httpContext.request.url.setPort($port)
         httpContext.request.httpVersion = reqParts[2]
 
     else:
