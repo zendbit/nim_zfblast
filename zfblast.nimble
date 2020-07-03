@@ -7,5 +7,5 @@ srcDir      = "src"
 
 # Deps
 requires "nim >= 1.0.0"
-requires "uri3"
+requires "uri3 >= 0.1.4"
 requires "sha1"
