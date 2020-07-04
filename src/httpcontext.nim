@@ -73,17 +73,15 @@ type
   Request type procedures
 ]#
 
-#[
-  create new request
-  in general this will return Request instance with default value
-  and will be valued with request from client
-]#
 proc newRequest*(
   httpMethod: HttpMethod = HttpGet,
   httpVersion: string = constants.HTTP_VER,
   url: Uri3 = parseUri3(""),
   headers: HttpHeaders = newHttpHeaders(),
   body: string = ""): Request =
+  # create new request
+  # in general this will return Request instance with default value
+  # and will be valued with request from client
 
   return Request(
     httpMethod: httpMethod,
@@ -97,14 +95,12 @@ proc newRequest*(
     Response type procedures
 ]#
 
-#[
-    create Response instance
-    in general this will valued with Response instance with default value
-]#
 proc newResponse*(
   httpCode: HttpCode = Http200,
   headers: HttpHeaders = newHttpHeaders(),
   body: string = ""): Response =
+  # create Response instance
+  # in general this will valued with Response instance with default value
 
   return Response(
     httpCode: httpCode,
@@ -116,24 +112,22 @@ proc newResponse*(
   HttpContext type procedures
 ]#
 
-#[
-  create HttpContext instance
-  this will be the main HttpContext
-  will be contain:
-    client -> is the asyncsocket of connected client
-    request -> is the request from client
-    response -> is the response from server
-    keepAliveMax -> max request can handle by server on persistent connection
-      default value is 20 persistent request per connection
-    keepAliveTimeout -> keep alive timeout for persistent connection
-      default value is 10 seconds
-]#
 proc newHttpContext*(
   client: AsyncSocket,
   request: Request = newRequest(),
   response: Response = newResponse(body = ""),
   keepAliveMax: int = 10,
   keepAliveTimeout: int = 20): HttpContext =
+  # create HttpContext instance
+  # this will be the main HttpContext
+  # will be contain:
+  #  client -> is the asyncsocket of connected client
+  #  request -> is the request from client
+  #  response -> is the response from server
+  #  keepAliveMax -> max request can handle by server on persistent connection
+  #    default value is 20 persistent request per connection
+  #  keepAliveTimeout -> keep alive timeout for persistent connection
+  #    default value is 10 seconds
 
   return HttpContext(
     client: client,
@@ -142,13 +136,13 @@ proc newHttpContext*(
     keepAliveMax: keepAliveMax,
     keepAliveTimeout: keepAliveTimeout)
 
-# response to the client
 proc resp*(self: HttpContext): Future[void] {.async.} =
+  # send response to client
   if not isNil(self.send):
     await self.send(self)
 
-# clear the context for next persistent connection
 proc clear*(self: HttpContext) =
+  # clear the context for next persistent connection
   self.request.body = ""
   self.response.body = ""
   clear(self.response.headers)

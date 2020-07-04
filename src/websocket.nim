@@ -77,6 +77,7 @@ type
   WSFrame type procedures
 ]#
 proc generateMaskKey(self: WSFrame) =
+  # generate mask key for handshake
   var maskKey = ""
   for i in 0..<4:
     maskKey &= chr(rand(254))
@@ -87,7 +88,8 @@ proc generateMaskKey(self: WSFrame) =
 proc parseHeaders*(
   self: WSFrame,
   headers: string) =
-
+  # parse header of the websocket
+  # HTTP/1.1 implementation in nim lang depend on RFC (https://tools.ietf.org/html/rfc2616)
   if headers.len != 0:
     let b0 = headers[0].uint8
     let b1 = headers[1].uint8
@@ -103,7 +105,8 @@ proc parseHeaders*(
 proc parsePayloadLen*(
   self: WSFrame,
   payloadHeadersLen: string) =
-
+  # parse playload header length
+  # (message length)
   if payloadHeadersLen.len mod 2 == 0 and
     payloadHeadersLen.len != 0:
     var payloadLen:uint64 = 0
@@ -115,6 +118,8 @@ proc parsePayloadLen*(
     self.payloadLen = payloadLen
 
 proc encodeDecode*(self: WSFrame): string =
+  # xor encode decode
+  # the standard encryption for the websocket
   if self.mask != 0x0:
     var decodedData = ""
     for i in 0..<self.payloadLen:
@@ -125,6 +130,7 @@ proc encodeDecode*(self: WSFrame): string =
   return self.payloadData
 
 proc `$`*(self: WSFrame): string =
+  # conver the websocket frame into string representation
   var payloadData = ""
   # fin(1)|rsv1(1)|rsv2(1)|rsv3(1)|opcode(4)
   payloadData &= chr(
@@ -173,7 +179,9 @@ proc newWSFrame*(
   payloadData: string,
   fin: uint8 = 0x1,
   opCode: uint8 = WSOpCode.TextFrame.uint8): WSFrame =
-
+  # create new websocket frame
+  # default fin is for onetime sending non continous
+  # opCode default is WSOpCode.TextFrame
   let instance = WSFrame(
     fin: fin,
     rsv1: 0, rsv2: 0, rsv3:0,
@@ -196,7 +204,8 @@ proc newWebSocket*(
   state: WSState = WSState.HandShake,
   statusCode: WSStatusCode = WSStatusCode.HandShakeFailed):
   WebSocket =
-
+  # create new web socket
+  # default state is WSState.HandShake
   let hashId = now().utc().format("yyyy-MM-dd HH:mm:ss:ffffff")
   return WebSocket(
     state: state,
@@ -207,7 +216,7 @@ proc newWebSocket*(
 proc handShake*(
   self: WebSocket,
   handShakeKey: string): Future[void] {.async.} =
-
+  # create handshake with given handshake key
   if self.state == WSState.HandShake:
     # do handshake process
     if handShakeKey != "":
@@ -234,13 +243,13 @@ proc handShake*(
       await self.client.send(headers)
 
 proc send*(self: WebSocket): Future[void] {.async.} =
-
+  # send the websocket payload
   await self.client.send($self.outFrame)
 
 proc send*(
   self: WebSocket,
   frame: WSFrame): Future[void] {.async.} =
-
+  # send the websocket payload overwrite current outFrame with frame
   self.outFrame = frame
   await self.client.send($self.outFrame)
 ###

@@ -19,7 +19,8 @@ import
   httpcore,
   streams,
   times,
-  nativesockets
+  nativesockets,
+  sugar
 
 # nimble
 import
@@ -64,8 +65,8 @@ type
     reuseAddress*: bool
     # reuser port
     reusePort*: bool
-    # debug mode
-    debug*: bool
+    # trace mode
+    trace*: bool
     # SslSettings instance type
     sslSettings*: SslSettings
     # Keep-Alive header max request with given persistent timeout
@@ -84,7 +85,7 @@ type
     # value in bytes
     maxBodyLength*: int
 
-proc dbg*(cb: proc ()): Future[void] {.async.} =
+proc trace*(cb: () -> void): Future[void] {.async.} =
   if not isNil(cb):
     try:
       cb()
@@ -126,9 +127,9 @@ proc setupServer(self: ZFBlast) =
 
   # init https server socket
   when WITH_SSL:
-    if not isNil(self.sslSettings) and
-      isNil(self.sslServer):
-      if not fileExists(self.sslSettings.certFile):
+    if not self.sslSettings.isNil and
+      self.sslServer.isNil:
+      if not self.sslSettings.certFile.fileExists:
         echo "Certificate not found " & self.sslSettings.certFile
       elif not fileExists(self.sslSettings.keyFile):
         echo "Private key not found " & self.sslSettings.keyFile
@@ -208,7 +209,7 @@ proc send*(
 proc webSocketHandler(
   self: ZFBlast,
   httpContext: HttpContext,
-  callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
+  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
 
   let client = httpContext.client
   let webSocket = httpContext.webSocket
@@ -315,23 +316,23 @@ proc webSocketHandler(
       client.close()
 
     else:
-      # show debug
-      if self.debug:
-        asyncCheck dbg(proc () =
+      # show trace
+      if self.trace:
+        asyncCheck trace proc () =
           echo ""
           echo "#== start"
           echo "Websocket opcode not handled."
           echo frame.opCode
           echo "#== end"
-          echo "")
+          echo ""
 
   else:
     discard
 
   # call callback
   # on data received
-  if not isNil(callback):
-    await callback(httpContext)
+  if not callback.isNil:
+    await httpContext.callback
 
     # if State handshake
     # then send header handshake
@@ -361,14 +362,14 @@ proc webSocketHandler(
 proc clientHandler(
   self: ZFBlast,
   httpContext: HttpContext,
-  callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
+  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
 
   let client = httpContext.client
 
   var isRequestHeaderValid = true
   # only parse the header if websocket not initilaized
   # if nitialized indicate that websicket already connected
-  if isNil(httpContext.webSocket):
+  if httpContext.webSocket.isNil:
     let line = await client.recvLine()
     let reqParts = line.strip().split(" ")
     if reqParts.len == 3:
@@ -427,7 +428,7 @@ proc clientHandler(
     # pull reqeust @@ -430,11 +430,8 @@ proc clientHandler(
     # qbradley
     # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
-    let headers = parseHeader(line.strip())
+    let headers = line.strip().parseHeader
     let headerKey = headers.key.strip()
     let headerValue = headers.value
     if headerKey != "" and headerValue.len != 0:
@@ -458,13 +459,12 @@ proc clientHandler(
     httpContext.request.httpMethod in [HttpPost, HttpPut, HttpPatch]:
 
     #httpContext.request.body.writeLine(line)
-    let contentLength = getHttpHeaderValues(
-      "content-length",
+    let contentLength = "content-length".getHttpHeaderValues(
       httpContext.request.headers)
 
     # check body content
     if contentLength != "":
-      let bodyLen = parseInt(contentLength)
+      let bodyLen = contentLength.parseInt
 
       # if body content larger than server can handle
       # return 413 code
@@ -477,16 +477,16 @@ proc clientHandler(
       httpContext.response.httpCode = Http411
 
   # call the callback
-  if isRequestHeaderValid and isNil(httpContext.webSocket):
+  if isRequestHeaderValid and httpContext.webSocket.isNil:
     # if header valid and not web socket
-    if not isNil(callback):
-      await callback(httpContext)
+    if not callback.isNil:
+      await httpContext.callback
 
   # if websocket and already handshake
-  elif not isNil(httpContext.webSocket):
+  elif not httpContext.webSocket.isNil:
     await self.webSocketHandler(httpContext, callback)
 
-  elif not httpContext.client.isClosed():
+  elif not httpContext.client.isClosed:
     await self.send(httpContext)
 
 # handle client listener
@@ -494,7 +494,7 @@ proc clientHandler(
 proc clientListener(
   self: ZFBlast,
   client: AsyncSocket,
-  callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
+  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
 
   try:
     # setup http context
@@ -507,26 +507,26 @@ proc clientListener(
     httpContext.send = proc (ctx: HttpContext): Future[void] {.async.} =
       await self.send(ctx)
 
-    while not httpContext.client.isClosed():
+    while not httpContext.client.isClosed:
       await self.clientHandler(httpContext, callback)
 
   except Exception as ex:
-    # show debug
-    if self.debug:
-      asyncCheck dbg(proc () =
+    # show trace
+    if self.trace:
+      asyncCheck trace proc () =
         echo ""
         echo "#== start"
         echo "Client connection closed, accept new session."
         echo ex.msg
         echo "#== end"
-        echo "")
+        echo ""
 
 # serve unscure connection (http)
 proc doServe(
   self: ZFBlast,
-  callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
+  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
 
-  if not isNil(self.server):
+  if not self.server.isNil:
     self.server.setSockOpt(OptReuseAddr, self.reuseAddress)
     self.server.setSockOpt(OptReusePort, self.reusePort)
     self.server.bindAddr(self.port, self.address)
@@ -541,23 +541,23 @@ proc doServe(
         asyncCheck self.clientListener(client, callback)
 
       except Exception as ex:
-        # show debug
-        if self.debug:
-          asyncCheck dbg(proc () =
+        # show trace
+        if self.trace:
+          asyncCheck trace proc () =
             echo ""
             echo "#== start"
             echo "Failed to serve."
             echo ex.msg
             echo "#== end"
-            echo "")
+            echo ""
 
 # serve secure connection (https)
 when WITH_SSL:
   proc doServeSecure(
     self: ZFBlast,
-    callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
+    callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
 
-    if not isNil(self.sslServer):
+    if not self.sslServer.isNil:
       self.sslServer.setSockOpt(OptReuseAddr, self.reuseAddress)
       self.sslServer.setSockOpt(OptReusePort, self.reusePort)
       self.sslServer.bindAddr(self.sslSettings.port, self.address)
@@ -586,21 +586,21 @@ when WITH_SSL:
           asyncCheck self.clientListener(client, callback)
 
         except Exception as ex:
-          # show debug
-          if self.debug:
-            asyncCheck dbg(proc () =
+          # show trace
+          if self.trace:
+            asyncCheck trace proc () =
               echo ""
               echo "#== start"
               echo "Failed to serve."
               echo ex.msg
               echo "#== end"
-              echo "")
+              echo ""
 
 # serve the server
 # will have secure and unsecure connection if SslSettings given
 proc serve*(
   self: ZFBlast,
-  callback: proc (ctx: HttpContext): Future[void]): Future[void] {.async.} =
+  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
 
   asyncCheck self.doServe(callback)
   when WITH_SSL:
@@ -608,12 +608,12 @@ proc serve*(
   runForever()
 
 # create zfblast server with initial settings
-# default value debug is off
-# set debug to true if want to trace the data process
+# default value trace is off
+# set trace to true if want to trace the data process
 proc newZFBlast*(
   address: string,
   port: Port = Port(8000),
-  debug: bool = false,
+  trace: bool = false,
   reuseAddress: bool = true,
   reusePort:bool = false,
   sslSettings: SslSettings = nil,
@@ -624,7 +624,7 @@ proc newZFBlast*(
   var instance = ZFBlast(
     port: port,
     address: address,
-    debug: debug,
+    trace: trace,
     sslSettings: sslSettings,
     reuseAddress: reuseAddress,
     reusePort: reusePort,
@@ -632,15 +632,15 @@ proc newZFBlast*(
     keepAliveTimeout: keepAliveTimeout,
     keepAliveMax: keepAliveMax)
 
-  # show debugging output
-  if debug:
-    asyncCheck dbg(proc () =
+  # show traceging output
+  if trace:
+    asyncCheck trace proc () =
       echo ""
       echo "#== start"
       echo "Initialize ZFBlast"
       echo &"Bind address    : {address}"
       echo &"Port            : {port}"
-      echo &"Debug           : {debug}"
+      echo &"Debug           : {trace}"
       echo &"Reuse address   : {reuseAddress}"
       echo &"Reuse port      : {reusePort}"
       if isNil(sslSettings):
@@ -651,7 +651,7 @@ proc newZFBlast*(
         echo &"Ssl Key         : {sslSettings.keyFile}"
         echo &"Ssl Verify Peer : {sslSettings.verify}"
       echo "#== end"
-      echo "")
+      echo ""
 
   instance.setupServer
 
@@ -664,7 +664,7 @@ if isMainModule:
   let zfb = newZFBlast(
     "0.0.0.0",
     Port(8000),
-    debug = true,
+    trace = true,
     sslSettings = newSslSettings(
       certFile = joinPath("ssl", "certificate.pem"),
       keyFile = joinPath("ssl", "key.pem"),
@@ -676,7 +676,7 @@ if isMainModule:
   let zfb = newZFBlast(
     "0.0.0.0",
     Port(8000),
-    debug = true)
+    trace = true)
 
   waitfor zfb.serve(proc (ctx: HttpContext): Future[void] {.async.} =
     case ctx.request.url.getPath
