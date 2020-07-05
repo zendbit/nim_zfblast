@@ -601,7 +601,7 @@ when WITH_SSL:
 proc serve*(
   self: ZFBlast,
   callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
-
+  echo "serve.."
   asyncCheck self.doServe(callback)
   when WITH_SSL:
     asyncCheck self.doServeSecure(callback)

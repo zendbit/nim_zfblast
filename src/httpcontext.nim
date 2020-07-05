@@ -14,7 +14,8 @@
 import
   asyncnet,
   httpcore,
-  asyncdispatch
+  asyncdispatch,
+  sugar
 
 # nimble
 import
@@ -27,7 +28,7 @@ import
 
 type
   # Request type
-  Request* = ref object
+  Request* = ref object of RootObj
     # containt request header from client
     httpVersion*: string
     # request http method from client
@@ -41,7 +42,7 @@ type
     body*: string
 
   # Response type
-  Response* = ref object
+  Response* = ref object of RootObj
     # httpcode response to client
     httpCode*: HttpCode
     # headers response to client
@@ -58,7 +59,7 @@ type
     # Response type instance
     response*: Response
     # send response to client, this is bridge to ZFBlast send()
-    send*: proc (ctx: HttpContext): Future[void]
+    send*: (ctx: HttpContext) -> Future[void]
     # Keep-Alive header max request with given persistent timeout
     # read RFC (https://tools.ietf.org/html/rfc2616)
     # section Keep-Alive and Connection
