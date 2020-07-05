@@ -139,7 +139,7 @@ proc newHttpContext*(
 
 proc resp*(self: HttpContext): Future[void] {.async.} =
   # send response to client
-  if not isNil(self.send):
+  if not self.send.isNil:
     await self.send(self)
 
 proc clear*(self: HttpContext) =
