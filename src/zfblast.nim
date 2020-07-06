@@ -93,7 +93,7 @@ proc trace*(cb: () -> void): Future[void] {.async.} =
     except Exception as ex:
       echo ex.msg
 
-proc getHttpHeaderValues*(key: string, httpHeaders: HttpHeaders): HttpHeaderValues =
+proc getHttpHeaderValues*(httpHeaders: HttpHeaders, key: string): HttpHeaderValues =
   var headers: HttpHeaderValues = httpHeaders.getOrDefault(key)
   if headers == "":
     return httpHeaders.getOrDefault(key.toLower())
@@ -140,9 +140,8 @@ proc isKeepAlive(
   self: ZFBlast,
   httpContext: HttpContext): bool =
 
-  let keepAliveHeader = getHttpHeaderValues(
-    "Connection",
-    httpContext.request.headers)
+  let keepAliveHeader =
+    httpContext.request.headers.getHttpHeaderValues("Connection")
   if keepAliveHeader != "":
     if keepAliveHeader.toLower().find("close") == -1:
       return true
@@ -341,7 +340,7 @@ proc webSocketHandler(
     if webSocket.state == WSState.HandShake:
       # do handshake process
       let handshakeKey =
-        getHttpHeaderValues("Sec-WebSocket-Key", httpContext.request.headers)
+        httpContext.request.headers.getHttpHeaderValues("Sec-WebSocket-Key")
         .strip()
 
       await webSocket.handShake(handshakeKey)
@@ -459,8 +458,8 @@ proc clientHandler(
     httpContext.request.httpMethod in [HttpPost, HttpPut, HttpPatch]:
 
     #httpContext.request.body.writeLine(line)
-    let contentLength = "content-length".getHttpHeaderValues(
-      httpContext.request.headers)
+    let contentLength =
+      httpContext.request.headers.getHttpHeaderValues("content-length")
 
     # check body content
     if contentLength != "":
