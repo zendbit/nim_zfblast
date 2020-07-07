@@ -457,6 +457,7 @@ proc clientHandler(
     if line == CRLF:
       break
 
+  var isValidBodyLength = true
   # parse body
   if isRequestHeaderValid and
     httpContext.request.httpMethod in [HttpPost, HttpPut, HttpPatch]:
@@ -473,7 +474,8 @@ proc clientHandler(
       # return 413 code
       if bodyLen > self.maxBodyLength:
           httpContext.response.httpCode = Http413
-
+          httpContext.response.body = &"request larger than {bodyLen div (1024*1024)} MB not allowed."
+          isValidBodyLength = false
       else:
         # if request len is less or equals just save the body
         let bodyCache = self.tmpBodyDir.joinPath(now().utc().format("yyyy-MM-dd HH:mm:ss:fffffffff").encode)
@@ -499,14 +501,15 @@ proc clientHandler(
       httpContext.response.httpCode = Http411
 
   # call the callback
-  if isRequestHeaderValid and httpContext.webSocket.isNil:
-    # if header valid and not web socket
-    if not callback.isNil:
-      await httpContext.callback
+  if isValidBodyLength:
+    if isRequestHeaderValid and httpContext.webSocket.isNil:
+      # if header valid and not web socket
+      if not callback.isNil:
+        await httpContext.callback
 
-  # if websocket and already handshake
-  elif not httpContext.webSocket.isNil:
-    await self.webSocketHandler(httpContext, callback)
+    # if websocket and already handshake
+    elif not httpContext.webSocket.isNil:
+      await self.webSocketHandler(httpContext, callback)
 
   elif not httpContext.client.isClosed:
     await self.send(httpContext)
