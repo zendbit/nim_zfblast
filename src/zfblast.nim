@@ -20,7 +20,9 @@ import
   streams,
   times,
   nativesockets,
-  sugar
+  sugar,
+  math,
+  base64
 
 # nimble
 import
@@ -84,6 +86,9 @@ type
     # can be vary on seting
     # value in bytes
     maxBodyLength*: int
+    tmpDir*: string
+    readBodyBuffer*: int
+    tmpBodyDir*: string
 
 proc trace*(cb: () -> void): Future[void] {.async.} =
   if not isNil(cb):
@@ -167,12 +172,10 @@ proc send*(
     format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & &" GMT{CRLF}"
 
   if isKeepAlive:
-    if not (response.headers.hasKey("Connection") or
-      response.headers.hasKey("connection")):
+    if response.headers.getHttpHeaderValues("Connection") == "":
       headers &= &"Connection: keep-alive{CRLF}"
 
-    if not (response.headers.hasKey("Keep-Alive") or
-      response.headers.hasKey("keep-alive")):
+    if response.headers.getHttpHeaderValues("Keep-Alive") == "":
       headers &= "Keep-Alive: " &
         &"timeout={httpContext.keepAliveTimeout}" &
         &", max={httpContext.keepAliveMax}{CRLF}"
@@ -180,8 +183,9 @@ proc send*(
   else:
     headers &= &"Connection: close{CRLF}"
 
-  if request.httpMethod != HttpHead:
-    contentBody = response.body
+  contentBody = response.body
+
+  if response.headers.getHttpHeaderValues("Content-Length") == "":
     headers &= &"Content-Length: {contentBody.len}{CRLF}"
 
   for k, v in response.headers.pairs:
@@ -470,7 +474,26 @@ proc clientHandler(
       if bodyLen > self.maxBodyLength:
           httpContext.response.httpCode = Http413
 
-      httpContext.request.body = await client.recv(bodyLen)
+      else:
+        # if request len is less or equals just save the body
+        let bodyCache = self.tmpBodyDir.joinPath(now().utc().format("yyyy-MM-dd HH:mm:ss:fffffffff").encode)
+        let writeBody = bodyCache.newFileStream(fmWrite)
+        if bodyLen <= self.readBodyBuffer:
+          #httpContext.request.body = await client.recv(bodyLen)
+          writeBody.write(await client.recv(bodyLen))
+        else:
+          let remainBodyLen = bodyLen mod self.readBodyBuffer
+          let toBuff = floor(bodyLen/self.readBodyBuffer).int
+          for i in 1..toBuff:
+            #httpContext.request.body &= await client.recv(self.readBodyBuffer)
+            writeBody.write(await client.recv(self.readBodyBuffer))
+          if remainBodyLen != 0:
+            #httpContext.request.body &= await client.recv(remainBodyLen)
+            writeBody.write(await client.recv(remainBodyLen))
+
+        writeBody.close
+        if bodyCache.existsFile:
+          httpContext.request.body = bodyCache
 
     else:
       httpContext.response.httpCode = Http411
@@ -618,7 +641,10 @@ proc newZFBlast*(
   sslSettings: SslSettings = nil,
   maxBodyLength: int = 268435456,
   keepAliveMax: int = 20,
-  keepAliveTimeout: int = 10): ZFBlast =
+  keepAliveTimeout: int = 10,
+  tmpDir: string = getAppDir().joinPath(".tmp"),
+  tmpBodyDir: string = getAppDir().joinPath(".tmp", "body"),
+  readBodyBuffer: int = 1024): ZFBlast =
 
   var instance = ZFBlast(
     port: port,
@@ -629,7 +655,13 @@ proc newZFBlast*(
     reusePort: reusePort,
     maxBodyLength: maxBodyLength,
     keepAliveTimeout: keepAliveTimeout,
-    keepAliveMax: keepAliveMax)
+    keepAliveMax: keepAliveMax,
+    tmpDir: tmpDir,
+    readBodyBuffer: readBodyBuffer,
+    tmpBodyDir: tmpBodyDir)
+
+  if not instance.tmpBodyDir.existsDir:
+    instance.tmpBodyDir.createDir
 
   # show traceging output
   if trace:
