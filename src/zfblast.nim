@@ -321,7 +321,7 @@ proc webSocketHandler(
     else:
       # show trace
       if self.trace:
-        asyncCheck trace proc () =
+        asyncCheck trace do () -> void:
           echo ""
           echo "#== start"
           echo "Websocket opcode not handled."
@@ -538,7 +538,7 @@ proc clientListener(
   except Exception as ex:
     # show trace
     if self.trace:
-      asyncCheck trace proc () =
+      asyncCheck trace do () -> void:
         echo ""
         echo "#== start"
         echo "Client connection closed, accept new session."
@@ -568,7 +568,7 @@ proc doServe(
       except Exception as ex:
         # show trace
         if self.trace:
-          asyncCheck trace proc () =
+          asyncCheck trace do () -> void:
             echo ""
             echo "#== start"
             echo "Failed to serve."
@@ -613,7 +613,7 @@ when WITH_SSL:
         except Exception as ex:
           # show trace
           if self.trace:
-            asyncCheck trace proc () =
+            asyncCheck trace do () -> void:
               echo ""
               echo "#== start"
               echo "Failed to serve."
@@ -668,7 +668,7 @@ proc newZFBlast*(
 
   # show traceging output
   if trace:
-    asyncCheck trace proc () =
+    asyncCheck trace do () -> void:
       echo ""
       echo "#== start"
       echo "Initialize ZFBlast"
