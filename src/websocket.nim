@@ -12,21 +12,16 @@
 ]#
 
 # std
-import
-  random,
-  times,
-  asyncnet,
-  asyncdispatch,
-  httpCore,
-  strformat
+import random, times, asyncnet, asyncdispatch, httpcore, strformat
+export random, times, asyncnet, asyncdispatch, httpcore, strformat
 
 # nimble
-import
-  sha1
+import sha1
+export sha1
 
 # local
-import
-  constants
+import constants
+export constants
 
 type
   WSState* = enum

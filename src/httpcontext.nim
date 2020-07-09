@@ -11,20 +11,16 @@
 ]#
 
 # std
-import
-  asyncnet,
-  httpcore,
-  asyncdispatch,
-  sugar
+import asyncnet, httpcore, asyncdispatch, sugar
+export asyncnet, httpcore, asyncdispatch, sugar
 
 # nimble
-import
-  uri3
+import uri3
+export uri3
 
 # local
-import
-  constants,
-  websocket
+import constants, websocket
+export constants, websocket
 
 type
   # Request type

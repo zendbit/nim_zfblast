@@ -9,39 +9,11 @@
   HTTP/1.1 implementation in nim lang depend on RFC (https://tools.ietf.org/html/rfc2616)
   Supporting Keep Alive to maintain persistent connection.
 ]#
-import
-  asyncnet,
-  asyncdispatch,
-  os,
-  net,
-  strformat,
-  strutils,
-  httpcore,
-  streams,
-  times,
-  nativesockets,
-  sugar,
-  math,
-  base64
+import nativesockets, strutils, os, base64, math, streams, asyncnet, net
+export nativesockets, strutils, os, base64, math, streams, asyncnet, net
 
-# nimble
-import
-  uri3
-
-# local
-import
-  httpcontext,
-  websocket
-
-from
-  constants
-  import
-    HTTP_VER,
-    SERVER_ID,
-    SERVER_VER,
-    WITH_SSL,
-    CRLF,
-    WS_MAGIC_STRING
+import httpcontext, websocket, constants
+export httpcontext, websocket, constants
 
 type
   # SslSettings type for secure connection
@@ -745,24 +717,3 @@ if isMainModule:
     await ctx.resp
   )
 
-# std
-export
-  asyncnet,
-  asyncdispatch,
-  os,
-  net,
-  strformat,
-  strutils,
-  httpcore,
-  times,
-  streams,
-  nativesockets
-
-# nimble
-export
-  uri3
-
-# local
-export
-  websocket,
-  httpcontext
