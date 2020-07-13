@@ -173,7 +173,7 @@ proc `$`*(self: WSFrame): string =
 proc newWSFrame*(
   payloadData: string,
   fin: uint8 = 0x1,
-  opCode: uint8 = WSOpCode.TextFrame.uint8): WSFrame =
+  opCode: uint8 = WSOpCode.TextFrame.uint8): WSFrame {.gcsafe.} =
   # create new websocket frame
   # default fin is for onetime sending non continous
   # opCode default is WSOpCode.TextFrame
@@ -198,7 +198,7 @@ proc newWebSocket*(
   client: AsyncSocket,
   state: WSState = WSState.HandShake,
   statusCode: WSStatusCode = WSStatusCode.HandShakeFailed):
-  WebSocket =
+  WebSocket {.gcsafe.} =
   # create new web socket
   # default state is WSState.HandShake
   let hashId = now().utc().format("yyyy-MM-dd HH:mm:ss:ffffff")
@@ -210,7 +210,7 @@ proc newWebSocket*(
 
 proc handShake*(
   self: WebSocket,
-  handShakeKey: string): Future[void] {.async.} =
+  handShakeKey: string): Future[void] {.gcsafe async.} =
   # create handshake with given handshake key
   if self.state == WSState.HandShake:
     # do handshake process
@@ -237,13 +237,13 @@ proc handShake*(
       # send handshare response
       await self.client.send(headers)
 
-proc send*(self: WebSocket): Future[void] {.async.} =
+proc send*(self: WebSocket): Future[void] {.gcsafe async.} =
   # send the websocket payload
   await self.client.send($self.outFrame)
 
 proc send*(
   self: WebSocket,
-  frame: WSFrame): Future[void] {.async.} =
+  frame: WSFrame): Future[void] {.gcsafe async.} =
   # send the websocket payload overwrite current outFrame with frame
   self.outFrame = frame
   await self.client.send($self.outFrame)

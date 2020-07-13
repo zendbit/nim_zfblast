@@ -62,7 +62,7 @@ type
     readBodyBuffer*: int
     tmpBodyDir*: string
 
-proc trace*(cb: () -> void): Future[void] {.async.} =
+proc trace*(cb: proc ():void {.gcsafe.}): Future[void] {.gcsafe async.} =
   if not isNil(cb):
     try:
       cb()
@@ -84,7 +84,7 @@ proc newSslSettings*(
   certFile: string,
   keyFile: string,
   port: Port = Port(8443),
-  verify: bool = false): SslSettings =
+  verify: bool = false): SslSettings {.gcsafe.} =
 
   return SslSettings(
     certFile: certFile,
@@ -128,7 +128,7 @@ proc isKeepAlive(
 # send response to the client
 proc send*(
   self: ZFBlast,
-  httpContext: HttpContext): Future[void] {.async.} =
+  httpContext: HttpContext): Future[void] {.gcsafe async.} =
 
   let client = httpContext.client
   let request = httpContext.request
@@ -184,7 +184,7 @@ proc send*(
 proc webSocketHandler(
   self: ZFBlast,
   httpContext: HttpContext,
-  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
+  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
 
   let client = httpContext.client
   let webSocket = httpContext.webSocket
@@ -293,7 +293,7 @@ proc webSocketHandler(
     else:
       # show trace
       if self.trace:
-        asyncCheck trace do () -> void:
+        asyncCheck trace proc (): void {.gcsafe.} =
           echo ""
           echo "#== start"
           echo "Websocket opcode not handled."
@@ -337,7 +337,7 @@ proc webSocketHandler(
 proc clientHandler(
   self: ZFBlast,
   httpContext: HttpContext,
-  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
+  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
 
   let client = httpContext.client
 
@@ -491,7 +491,7 @@ proc clientHandler(
 proc clientListener(
   self: ZFBlast,
   client: AsyncSocket,
-  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
+  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
 
   try:
     # setup http context
@@ -510,7 +510,7 @@ proc clientListener(
   except Exception as ex:
     # show trace
     if self.trace:
-      asyncCheck trace do () -> void:
+      waitFor trace proc (): void {.gcsafe.} =
         echo ""
         echo "#== start"
         echo "Client connection closed, accept new session."
@@ -521,7 +521,7 @@ proc clientListener(
 # serve unscure connection (http)
 proc doServe(
   self: ZFBlast,
-  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
+  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
 
   if not self.server.isNil:
     self.server.setSockOpt(OptReuseAddr, self.reuseAddress)
@@ -535,12 +535,12 @@ proc doServe(
     while true:
       try:
         let client = await self.server.accept()
-        asyncCheck self.clientListener(client, callback)
+        asyncCheck self.clientListener(deepCopy(client), deepCopy(callback))
 
       except Exception as ex:
         # show trace
         if self.trace:
-          asyncCheck trace do () -> void:
+          asyncCheck trace proc (): void {.gcsafe.} =
             echo ""
             echo "#== start"
             echo "Failed to serve."
@@ -552,7 +552,7 @@ proc doServe(
 when WITH_SSL:
   proc doServeSecure(
     self: ZFBlast,
-    callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
+    callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
 
     if not self.sslServer.isNil:
       self.sslServer.setSockOpt(OptReuseAddr, self.reuseAddress)
@@ -580,12 +580,12 @@ when WITH_SSL:
           wrapConnectedSocket(sslContext, client,
             SslHandshakeType.handshakeAsServer, &"{host}:{port}")
 
-          asyncCheck self.clientListener(client, callback)
+          asyncCheck self.clientListener(deepCopy(client), deepCopy(callback))
 
         except Exception as ex:
           # show trace
           if self.trace:
-            asyncCheck trace do () -> void:
+            asyncCheck trace proc (): void {.gcsafe.} =
               echo ""
               echo "#== start"
               echo "Failed to serve."
@@ -597,8 +597,7 @@ when WITH_SSL:
 # will have secure and unsecure connection if SslSettings given
 proc serve*(
   self: ZFBlast,
-  callback: (ctx: HttpContext) -> Future[void]): Future[void] {.async.} =
-  echo "serve.."
+  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
   asyncCheck self.doServe(callback)
   when WITH_SSL:
     asyncCheck self.doServeSecure(callback)
@@ -619,7 +618,7 @@ proc newZFBlast*(
   keepAliveTimeout: int = 10,
   tmpDir: string = getAppDir().joinPath(".tmp"),
   tmpBodyDir: string = getAppDir().joinPath(".tmp", "body"),
-  readBodyBuffer: int = 1024): ZFBlast =
+  readBodyBuffer: int = 1024): ZFBlast {.gcsafe.} =
 
   var instance = ZFBlast(
     port: port,
@@ -640,7 +639,7 @@ proc newZFBlast*(
 
   # show traceging output
   if trace:
-    asyncCheck trace do () -> void:
+    asyncCheck trace proc (): void {.gcsafe.} =
       echo ""
       echo "#== start"
       echo "Initialize ZFBlast"
@@ -684,7 +683,7 @@ if isMainModule:
     Port(8000),
     trace = true)
 
-  waitfor zfb.serve(proc (ctx: HttpContext): Future[void] {.async.} =
+  waitfor zfb.serve(proc (ctx: HttpContext): Future[void] {.gcsafe async.} =
     case ctx.request.url.getPath
     # http(s)://localhost
     of "/":

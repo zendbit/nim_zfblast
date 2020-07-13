@@ -55,7 +55,7 @@ type
     # Response type instance
     response*: Response
     # send response to client, this is bridge to ZFBlast send()
-    send*: (ctx: HttpContext) -> Future[void]
+    send*: proc (ctx: HttpContext): Future[void] {.gcsafe.}
     # Keep-Alive header max request with given persistent timeout
     # read RFC (https://tools.ietf.org/html/rfc2616)
     # section Keep-Alive and Connection
@@ -75,7 +75,7 @@ proc newRequest*(
   httpVersion: string = constants.HTTP_VER,
   url: Uri3 = parseUri3(""),
   headers: HttpHeaders = newHttpHeaders(),
-  body: string = ""): Request =
+  body: string = ""): Request {.gcsafe.} =
   # create new request
   # in general this will return Request instance with default value
   # and will be valued with request from client
@@ -95,7 +95,7 @@ proc newRequest*(
 proc newResponse*(
   httpCode: HttpCode = Http200,
   headers: HttpHeaders = newHttpHeaders(),
-  body: string = ""): Response =
+  body: string = ""): Response {.gcsafe.} =
   # create Response instance
   # in general this will valued with Response instance with default value
 
@@ -114,7 +114,7 @@ proc newHttpContext*(
   request: Request = newRequest(),
   response: Response = newResponse(body = ""),
   keepAliveMax: int = 10,
-  keepAliveTimeout: int = 20): HttpContext =
+  keepAliveTimeout: int = 20): HttpContext {.gcsafe.} =
   # create HttpContext instance
   # this will be the main HttpContext
   # will be contain:
@@ -133,12 +133,12 @@ proc newHttpContext*(
     keepAliveMax: keepAliveMax,
     keepAliveTimeout: keepAliveTimeout)
 
-proc resp*(self: HttpContext): Future[void] {.async.} =
+proc resp*(self: HttpContext): Future[void] {.gcsafe async.} =
   # send response to client
   if not self.send.isNil:
     await self.send(self)
 
-proc clear*(self: HttpContext) =
+proc clear*(self: HttpContext) {.gcsafe.} =
   # clear the context for next persistent connection
   self.request.body = ""
   self.response.body = ""
