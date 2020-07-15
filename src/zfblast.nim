@@ -9,8 +9,8 @@
   HTTP/1.1 implementation in nim lang depend on RFC (https://tools.ietf.org/html/rfc2616)
   Supporting Keep Alive to maintain persistent connection.
 ]#
-import nativesockets, strutils, os, base64, math, streams, asyncnet, net
-export nativesockets, strutils, os, base64, math, streams, asyncnet, net
+import nativesockets, strutils, os, base64, math, streams, net, threadpool
+export nativesockets, strutils, os, base64, math, streams, net
 
 import httpcontext, websocket, constants
 export httpcontext, websocket, constants
@@ -51,9 +51,9 @@ type
     # Keep-Alive timeout
     keepAliveTimeout*: int
     # serve unsecure (http)
-    server: AsyncSocket
+    server: Socket
     # serve secure (https)
-    sslServer: AsyncSocket
+    sslServer: Socket
     # max body length server can handle
     # can be vary on seting
     # value in bytes
@@ -62,7 +62,7 @@ type
     readBodyBuffer*: int
     tmpBodyDir*: string
 
-proc trace*(cb: proc ():void {.gcsafe.}): Future[void] {.gcsafe async.} =
+proc trace*(cb: proc ():void {.gcsafe.}) {.gcsafe.} =
   if not isNil(cb):
     try:
       cb()
@@ -100,7 +100,7 @@ proc setupServer(self: ZFBlast) =
 
   # init http server socket
   if isNil(self.server):
-    self.server = newAsyncSocket()
+    self.server = newSocket()
 
   # init https server socket
   when WITH_SSL:
@@ -111,7 +111,7 @@ proc setupServer(self: ZFBlast) =
       elif not fileExists(self.sslSettings.keyFile):
         echo "Private key not found " & self.sslSettings.keyFile
       else:
-        self.sslServer = newAsyncSocket()
+        self.sslServer = newSocket()
 
 proc isKeepAlive(
   self: ZFBlast,
@@ -128,7 +128,7 @@ proc isKeepAlive(
 # send response to the client
 proc send*(
   self: ZFBlast,
-  httpContext: HttpContext): Future[void] {.gcsafe async.} =
+  httpContext: HttpContext) {.gcsafe.} =
 
   let client = httpContext.client
   let request = httpContext.request
@@ -166,16 +166,16 @@ proc send*(
   headers &= CRLF
 
   try:
-    if not client.isClosed():
+    if not client.isNil:
       if request.httpMethod == HttpHead:
-        await client.send(headers)
+        client.send(headers)
       else:
-        await client.send(headers & contentBody)
+        client.send(headers & contentBody)
   except Exception:
     discard
 
-  if not isKeepAlive and (not client.isClosed()):
-    client.close()
+  if not isKeepAlive and not client.isNil:
+    client.close
 
   # clean up all string stream request and response
   httpContext.clear()
@@ -184,7 +184,7 @@ proc send*(
 proc webSocketHandler(
   self: ZFBlast,
   httpContext: HttpContext,
-  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
+  callback: proc (ctx: HttpContext) {.gcsafe.}) {.gcsafe.} =
 
   let client = httpContext.client
   let webSocket = httpContext.webSocket
@@ -212,7 +212,7 @@ proc webSocketHandler(
     httpContext.webSocket.inFrame = frame
 
     # get header first 2 bytes
-    let header = await client.recv(2)
+    let header = client.recv(2)
     # make sure header containt 2 bytes (string with len 2)
     if header.len == 2 and header.strip() != "":
       # parse the headers frame
@@ -223,14 +223,14 @@ proc webSocketHandler(
         # get the length of the data from the
         # next 2 bytes
         # get extended payload length next 2 bytes
-        frame.parsePayloadLen(await client.recv(2))
+        frame.parsePayloadLen(client.recv(2))
 
       elif frame.payloadLen == 0x7f:
         # if payload len 127 (0x7f)
         # get the length of the data from the
         # next 8 bytes
         # get extended payload length next 8 bytes
-        frame.parsePayloadLen(await client.recv(8))
+        frame.parsePayloadLen(client.recv(8))
 
       # check if the payload len is not larget than allowed max
       # max is maxBodyLength
@@ -241,7 +241,7 @@ proc webSocketHandler(
         # if isMasked then get the mask key
         # next 4 bytes (uint32)
         if frame.mask != 0x0:
-          frame.maskKey = await client.recv(4)
+          frame.maskKey = client.recv(4)
 
         # get payload data
         if frame.payloadLen != 0:
@@ -250,27 +250,27 @@ proc webSocketHandler(
           frame.payloadData = ""
           var retrieveCount = (frame.payloadLen div high(int32).uint64).uint64
           if retrieveCount == 0:
-            frame.payloadData = await client.recv(frame.payloadLen.int32)
+            frame.payloadData = client.recv(frame.payloadLen.int32)
 
           else:
             let restToRetrieve = frame.payloadLen mod high(int32).uint64
             for i in 0..retrieveCount:
-              frame.payloadData &= await client.recv(high(int32))
+              frame.payloadData &= client.recv(high(int32))
 
             if restToRetrieve != 0:
-              frame.payloadData &= await client.recv(restToRetrieve.int32)
+              frame.payloadData &= client.recv(restToRetrieve.int32)
 
       else:
         webSocket.state = WSState.Close
         webSocket.statusCode = WSStatusCode.PayloadToBig
-        client.close()
+        client.close
 
     case frame.opCode
     of WSOpCode.Ping.uint8:
       # response the ping with same message buat change the opcode to pong
       webSocket.outFrame = deepCopy(webSocket.inFrame)
       webSocket.outFrame.opCode = WSOpCode.Pong.uint8
-      await webSocket.send()
+      webSocket.send()
       # if ping dont call the callback
       return
 
@@ -280,7 +280,7 @@ proc webSocketHandler(
         # close the connection if not valid
         webSocket.state = WSState.Close
         webSocket.statusCode = WSStatusCode.Refused
-        client.close()
+        client.close
       else:
         # if valid just return and wait next message
         return
@@ -288,12 +288,12 @@ proc webSocketHandler(
     of WSOpCode.ConnectionClose.uint8:
       webSocket.state = WSState.Close
       webSocket.statusCode = WSStatusCode.GoingAway
-      client.close()
+      client.close
 
     else:
       # show trace
       if self.trace:
-        asyncCheck trace proc (): void {.gcsafe.} =
+        trace proc (): void {.gcsafe.} =
           echo ""
           echo "#== start"
           echo "Websocket opcode not handled."
@@ -307,7 +307,7 @@ proc webSocketHandler(
   # call callback
   # on data received
   if not callback.isNil:
-    await httpContext.callback
+    httpContext.callback
 
     # if State handshake
     # then send header handshake
@@ -319,7 +319,7 @@ proc webSocketHandler(
         httpContext.request.headers.getHttpHeaderValues("Sec-WebSocket-Key")
         .strip()
 
-      await webSocket.handShake(handshakeKey)
+      webSocket.handShake(handshakeKey)
 
       # send ping after handshake
       webSocket.state = WSState.Open
@@ -331,13 +331,13 @@ proc webSocketHandler(
         webSocket.hashId,
         1,
         WSOpCode.Ping.uint8)
-      await webSocket.send()
+      webSocket.send()
 
 # handle client connections
 proc clientHandler(
   self: ZFBlast,
   httpContext: HttpContext,
-  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
+  callback: proc (ctx: HttpContext) {.gcsafe.}) {.gcsafe.} =
 
   let client = httpContext.client
 
@@ -345,7 +345,11 @@ proc clientHandler(
   # only parse the header if websocket not initilaized
   # if nitialized indicate that websicket already connected
   if httpContext.webSocket.isNil:
-    let line = await client.recvLine()
+    let line = client.recvLine()
+    if line == "":
+      client.close
+      return
+
     let reqParts = line.strip().split(" ")
     if reqParts.len == 3:
       case reqParts[0]
@@ -399,7 +403,7 @@ proc clientHandler(
 
   # parse general header
   while isRequestHeaderValid:
-    let line = await client.recvLine()
+    let line = client.recvLine()
     # pull reqeust @@ -430,11 +430,8 @@ proc clientHandler(
     # qbradley
     # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
@@ -453,17 +457,17 @@ proc clientHandler(
         let bodyCache = self.tmpBodyDir.joinPath(now().utc().format("yyyy-MM-dd HH:mm:ss:fffffffff").encode)
         let writeBody = bodyCache.newFileStream(fmWrite)
         if bodyLen <= self.readBodyBuffer:
-          #httpContext.request.body = await client.recv(bodyLen)
-          writeBody.write(await client.recv(bodyLen))
+          #httpContext.request.body = client.recv(bodyLen)
+          writeBody.write(client.recv(bodyLen))
         else:
           let remainBodyLen = bodyLen mod self.readBodyBuffer
           let toBuff = floor(bodyLen/self.readBodyBuffer).int
           for i in 1..toBuff:
-            #httpContext.request.body &= await client.recv(self.readBodyBuffer)
-            writeBody.write(await client.recv(self.readBodyBuffer))
+            #httpContext.request.body &= client.recv(self.readBodyBuffer)
+            writeBody.write(client.recv(self.readBodyBuffer))
           if remainBodyLen != 0:
-            #httpContext.request.body &= await client.recv(remainBodyLen)
-            writeBody.write(await client.recv(remainBodyLen))
+            #httpContext.request.body &= client.recv(remainBodyLen)
+            writeBody.write(client.recv(remainBodyLen))
 
         writeBody.close
         if bodyCache.existsFile:
@@ -477,21 +481,21 @@ proc clientHandler(
     if isRequestHeaderValid and httpContext.webSocket.isNil:
       # if header valid and not web socket
       if not callback.isNil:
-        await httpContext.callback
+        httpContext.callback
 
     # if websocket and already handshake
     elif not httpContext.webSocket.isNil:
-      await self.webSocketHandler(httpContext, callback)
+      self.webSocketHandler(httpContext, callback)
 
-  elif not httpContext.client.isClosed:
-    await self.send(httpContext)
+  elif not httpContext.client.isNil:
+    self.send(httpContext)
 
 # handle client listener
 # will listen until the client socket closed
 proc clientListener(
   self: ZFBlast,
-  client: AsyncSocket,
-  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
+  client: Socket,
+  callback: proc (ctx: HttpContext) {.gcsafe.}) {.gcsafe.} =
 
   try:
     # setup http context
@@ -501,16 +505,16 @@ proc clientListener(
       keepAliveTimeout = self.keepAliveTimeout,
       keepAliveMax = self.keepAliveMax)
 
-    httpContext.send = proc (ctx: HttpContext): Future[void] {.async.} =
-      await self.send(ctx)
+    httpContext.send = proc (ctx: HttpContext) {.gcsafe.} =
+      self.send(ctx)
 
-    while not httpContext.client.isClosed:
-      await self.clientHandler(httpContext, callback)
+    while not httpContext.client.isNil:
+      self.clientHandler(httpContext, callback)
 
   except Exception as ex:
     # show trace
     if self.trace:
-      waitFor trace proc (): void {.gcsafe.} =
+      trace proc (): void {.gcsafe.} =
         echo ""
         echo "#== start"
         echo "Client connection closed, accept new session."
@@ -518,10 +522,9 @@ proc clientListener(
         echo "#== end"
         echo ""
 
-# serve unscure connection (http)
 proc doServe(
   self: ZFBlast,
-  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
+  callback: proc (ctx: HttpContext) {.gcsafe.}) {.gcsafe.} =
 
   if not self.server.isNil:
     self.server.setSockOpt(OptReuseAddr, self.reuseAddress)
@@ -534,13 +537,14 @@ proc doServe(
 
     while true:
       try:
-        let client = await self.server.accept()
-        asyncCheck self.clientListener(deepCopy(client), deepCopy(callback))
+        var client: Socket
+        self.server.accept(client)
+        spawn self.clientListener(client, callback)
 
       except Exception as ex:
         # show trace
         if self.trace:
-          asyncCheck trace proc (): void {.gcsafe.} =
+          trace proc (): void {.gcsafe.} =
             echo ""
             echo "#== start"
             echo "Failed to serve."
@@ -552,7 +556,7 @@ proc doServe(
 when WITH_SSL:
   proc doServeSecure(
     self: ZFBlast,
-    callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
+    callback: proc (ctx: HttpContext) {.gcsafe.}) {.gcsafe.} =
 
     if not self.sslServer.isNil:
       self.sslServer.setSockOpt(OptReuseAddr, self.reuseAddress)
@@ -565,7 +569,8 @@ when WITH_SSL:
 
       while true:
         try:
-          let client = await self.sslServer.accept()
+          var client: Socket
+          self.sslServer.accept(client)
           let (host, port) = self.sslServer.getLocalAddr()
 
           var verifyMode = SslCVerifyMode.CVerifyNone
@@ -580,12 +585,12 @@ when WITH_SSL:
           wrapConnectedSocket(sslContext, client,
             SslHandshakeType.handshakeAsServer, &"{host}:{port}")
 
-          asyncCheck self.clientListener(deepCopy(client), deepCopy(callback))
+          self.clientListener(client, callback)
 
         except Exception as ex:
           # show trace
           if self.trace:
-            asyncCheck trace proc (): void {.gcsafe.} =
+            trace proc (): void {.gcsafe.} =
               echo ""
               echo "#== start"
               echo "Failed to serve."
@@ -597,11 +602,13 @@ when WITH_SSL:
 # will have secure and unsecure connection if SslSettings given
 proc serve*(
   self: ZFBlast,
-  callback: proc (ctx: HttpContext): Future[void] {.gcsafe async.}): Future[void] {.gcsafe async.} =
-  asyncCheck self.doServe(callback)
+  callback: proc (ctx: HttpContext) {.gcsafe.}) {.gcsafe.} =
+  spawn self.doServe(callback)
   when WITH_SSL:
-    asyncCheck self.doServeSecure(callback)
-  runForever()
+    spawn self.doServeSecure(callback)
+
+  while true:
+    60000.sleep
 
 # create zfblast server with initial settings
 # default value trace is off
@@ -639,7 +646,7 @@ proc newZFBlast*(
 
   # show traceging output
   if trace:
-    asyncCheck trace proc (): void {.gcsafe.} =
+    trace proc (): void {.gcsafe.} =
       echo ""
       echo "#== start"
       echo "Initialize ZFBlast"
@@ -683,7 +690,7 @@ if isMainModule:
     Port(8000),
     trace = true)
 
-  waitfor zfb.serve(proc (ctx: HttpContext): Future[void] {.gcsafe async.} =
+  zfb.serve(proc (ctx: HttpContext) {.gcsafe.} =
     case ctx.request.url.getPath
     # http(s)://localhost
     of "/":
@@ -713,6 +720,6 @@ if isMainModule:
       ctx.response.httpCode = Http404
       ctx.response.body = "not found"
 
-    await ctx.resp
+    ctx.resp
   )
 
