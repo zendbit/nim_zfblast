@@ -27,7 +27,7 @@ Examples
 need to compiled with -d:ssl and make sure openssl installed
 ```
 
-```
+```nim
 let zfb = newZFBlast(
     "0.0.0.0",
     Port(8000),
