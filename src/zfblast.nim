@@ -173,8 +173,7 @@ proc send*(
         client.send(headers & contentBody)
   except Exception:
     discard
-
-  if not isKeepAlive and not client.isNil:
+  finally:
     client.close
 
   # clean up all string stream request and response
@@ -433,7 +432,7 @@ proc clientHandler(
     if line == CRLF:
       break
 
-  var isValidBodyLength = true
+  var isErrorBodyContent = false
   # parse body
   if isRequestHeaderValid and
     httpContext.request.httpMethod in [HttpPost, HttpPut, HttpPatch]:
@@ -451,7 +450,7 @@ proc clientHandler(
       if bodyLen > self.maxBodyLength:
           httpContext.response.httpCode = Http413
           httpContext.response.body = &"request larger than {bodyLen div (1024*1024)} MB not allowed."
-          isValidBodyLength = false
+          isErrorBodyContent = true
       else:
         # if request len is less or equals just save the body
         let bodyCache = self.tmpBodyDir.joinPath(now().utc().format("yyyy-MM-dd HH:mm:ss:fffffffff").encode)
@@ -477,7 +476,7 @@ proc clientHandler(
       httpContext.response.httpCode = Http411
 
   # call the callback
-  if isValidBodyLength:
+  if not isErrorBodyContent:
     if isRequestHeaderValid and httpContext.webSocket.isNil:
       # if header valid and not web socket
       if not callback.isNil:
@@ -508,8 +507,7 @@ proc clientListener(
     httpContext.send = proc (ctx: HttpContext) {.gcsafe.} =
       self.send(ctx)
 
-    while not httpContext.client.isNil:
-      self.clientHandler(httpContext, callback)
+    self.clientHandler(httpContext, callback)
 
   except Exception as ex:
     # show trace
