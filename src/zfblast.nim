@@ -9,7 +9,7 @@
   HTTP/1.1 implementation in nim lang depend on RFC (https://tools.ietf.org/html/rfc2616)
   Supporting Keep Alive to maintain persistent connection.
 ]#
-import nativesockets, strutils, os, base64, math, streams, net, threadpool, locks, sequtils, times
+import nativesockets, strutils, os, base64, math, streams, net, threadpool, sequtils, times
 export nativesockets, strutils, os, base64, math, streams, net
 
 import httpcontext, websocket, constants
@@ -61,16 +61,6 @@ type
     tmpDir*: string
     readBodyBuffer*: int
     tmpBodyDir*: string
-
-  ClientsPool = object
-    clients: seq[tuple[client: Socket, callback: proc (ctx: HttpContext) {.gcsafe.}]]
-    clientsInProcess: seq[tuple[client: Socket, callback: proc (ctx: HttpContext) {.gcsafe.}]]
-    clientsSecure: seq[tuple[client: Socket, callback: proc (ctx: HttpContext) {.gcsafe.}]]
-    clientsSecureInProcess: seq[tuple[client: Socket, callback: proc (ctx: HttpContext) {.gcsafe.}]]
-    workerThreadsCount: int
-
-var clientsPool: ptr ClientsPool
-var lock: Lock
 
 proc trace*(cb: proc ():void {.gcsafe.}) {.gcsafe.} =
   if not isNil(cb):
@@ -522,9 +512,6 @@ proc clientListener(
     while not client.isNil:
       self.clientHandler(httpContext, callback)
 
-    #lock.withLock:
-    #  clientsPool.workerThreadsCount.dec
-
   except Exception as ex:
     # show trace
     if self.trace:
@@ -535,33 +522,6 @@ proc clientListener(
         echo ex.msg
         echo "#== end"
         echo ""
-
-  clientsPool.workerThreadsCount -= 1
-
-proc startClientsPool(self: ZFBlast) {.gcsafe.} =
-  #
-  # start client pooling process
-  # get client from its pool
-  #
-  while true:
-    lock.withLock:
-      # only spawn process if worker threads meet with limitation
-      if clientsPool.workerThreadsCount < MaxThreadPoolSize - 6:
-        # handle non secure request
-        if clientsPool.clientsInProcess.len != 0:
-          spawn self.clientListener(
-            clientsPool.clientsInProcess[0].client.deepCopy,
-            clientsPool.clientsInProcess[0].callback.deepCopy)
-          clientsPool.clientsInProcess.delete(0)
-          clientsPool.workerThreadsCount += 1
-
-        # handle secure request
-        if clientsPool.clientsSecureInProcess.len != 0:
-          spawn self.clientListener(
-            clientsPool.clientsSecureInProcess[0].client.deepCopy,
-            clientsPool.clientsSecureInProcess[0].callback.deepCopy)
-          clientsPool.clientsSecureInProcess.delete(0)
-          clientsPool.workerThreadsCount += 1
 
 proc doServe(
   self: ZFBlast,
@@ -577,15 +537,10 @@ proc doServe(
     echo &"Listening non secure (plain) on http://{host}:{port}"
 
     while true:
-      try:
-        lock.withLock:
-          if clientsPool.clientsInProcess.len == 0 and clientsPool.clients.len != 0: 
-            clientsPool.clientsInProcess = clientsPool.clientsInProcess & clientsPool.clients.deepCopy
-            clientsPool.clients.delete(0, clientsPool.clients.high)
-        
+      try: 
         var client: Socket
         self.server.accept(client)
-        clientsPool.clients.add((client.deepCopy, callback.deepCopy))
+        spawn self.clientListener(client.deepCopy, callback.deepCopy)
 
       except Exception as ex:
         # show trace
@@ -615,11 +570,6 @@ when WITH_SSL:
 
       while true:
         try:
-          lock.withLock:
-            if clientsPool.clientsSecureInProcess.len == 0 and clientsPool.clientsSecure.len != 0:
-              clientsPool.clientsSecureInProcess = clientsPool.clientsSecureInProcess & clientsPool.clientsSecure.deepCopy
-              clientsPool.clientsSecure.delete(0, clientsPool.clientsSecure.high)
-
           var client: Socket
           self.sslServer.accept(client)
           let (host, port) = self.sslServer.getLocalAddr()
@@ -636,7 +586,7 @@ when WITH_SSL:
           wrapConnectedSocket(sslContext, client,
             SslHandshakeType.handshakeAsServer, &"{host}:{port}")
 
-          clientsPool.clientsSecure.add((client.deepCopy, callback.deepCopy))
+          spawn self.clientListener(client.deepCopy, callback.deepCopy)
 
         except Exception as ex:
           # show trace
@@ -655,14 +605,12 @@ proc serve*(
   self: ZFBlast,
   callback: proc (ctx: HttpContext) {.gcsafe.}) {.gcsafe.} =
 
-  clientsPool = cast[ptr ClientsPool](alloc0(sizeof(ClientsPool)))
-  lock.initLock
-
   spawn self.doServe(callback)
   when WITH_SSL:
     spawn self.doServeSecure(callback)
 
-  self.startClientsPool()
+  while true:
+    int.high.sleep
 
 # create zfblast server with initial settings
 # default value trace is off
