@@ -9,7 +9,7 @@
   HTTP/1.1 implementation in nim lang depend on RFC (https://tools.ietf.org/html/rfc2616)
   Supporting Keep Alive to maintain persistent connection.
 ]#
-import nativesockets, strutils, os, base64, math, streams, net, threadpool
+import nativesockets, strutils, os, base64, math, streams, net, threadpool, locks, sequtils, times
 export nativesockets, strutils, os, base64, math, streams, net
 
 import httpcontext, websocket, constants
@@ -61,6 +61,16 @@ type
     tmpDir*: string
     readBodyBuffer*: int
     tmpBodyDir*: string
+
+  ClientsPool = object
+    clients: seq[tuple[client: Socket, callback: proc (ctx: HttpContext) {.gcsafe.}]]
+    clientsInProcess: seq[tuple[client: Socket, callback: proc (ctx: HttpContext) {.gcsafe.}]]
+    clientsSecure: seq[tuple[client: Socket, callback: proc (ctx: HttpContext) {.gcsafe.}]]
+    clientsSecureInProcess: seq[tuple[client: Socket, callback: proc (ctx: HttpContext) {.gcsafe.}]]
+    workerThreadsCount: int
+
+var clientsPool: ptr ClientsPool
+var lock: Lock
 
 proc trace*(cb: proc ():void {.gcsafe.}) {.gcsafe.} =
   if not isNil(cb):
@@ -120,7 +130,8 @@ proc isKeepAlive(
   let keepAliveHeader =
     httpContext.request.headers.getHttpHeaderValues("Connection")
   if keepAliveHeader != "":
-    if keepAliveHeader.toLower().find("close") == -1:
+    if keepAliveHeader.toLower().find("close") == -1 and
+      keepAliveHeader.toLower().find("keep-alive") != -1:
       return true
 
   return false
@@ -141,7 +152,7 @@ proc send*(
   headers &= &"{HTTP_VER} {response.httpCode}{CRLF}"
   headers &= &"Server: {SERVER_ID} {SERVER_VER}{CRLF}"
   headers &= "Date: " &
-    format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & &" GMT{CRLF}"
+    now().utc().format("ddd, dd MMM yyyy HH:mm:ss".initTimeFormat) & &" GMT{CRLF}"
 
   if isKeepAlive:
     if response.headers.getHttpHeaderValues("Connection") == "":
@@ -173,7 +184,8 @@ proc send*(
         client.send(headers & contentBody)
   except Exception:
     discard
-  finally:
+  
+  if not isKeepAlive and not client.isNil:
     client.close
 
   # clean up all string stream request and response
@@ -453,7 +465,7 @@ proc clientHandler(
           isErrorBodyContent = true
       else:
         # if request len is less or equals just save the body
-        let bodyCache = self.tmpBodyDir.joinPath(now().utc().format("yyyy-MM-dd HH:mm:ss:fffffffff").encode)
+        let bodyCache = self.tmpBodyDir.joinPath(now().utc().format("yyyy-MM-dd HH:mm:ss:fffffffff".initTimeFormat).encode)
         let writeBody = bodyCache.newFileStream(fmWrite)
         if bodyLen <= self.readBodyBuffer:
           #httpContext.request.body = client.recv(bodyLen)
@@ -507,7 +519,11 @@ proc clientListener(
     httpContext.send = proc (ctx: HttpContext) {.gcsafe.} =
       self.send(ctx)
 
-    self.clientHandler(httpContext, callback)
+    while not client.isNil:
+      self.clientHandler(httpContext, callback)
+
+    #lock.withLock:
+    #  clientsPool.workerThreadsCount.dec
 
   except Exception as ex:
     # show trace
@@ -519,6 +535,33 @@ proc clientListener(
         echo ex.msg
         echo "#== end"
         echo ""
+
+  clientsPool.workerThreadsCount -= 1
+
+proc startClientsPool(self: ZFBlast) {.gcsafe.} =
+  #
+  # start client pooling process
+  # get client from its pool
+  #
+  while true:
+    lock.withLock:
+      # only spawn process if worker threads meet with limitation
+      if clientsPool.workerThreadsCount < MaxThreadPoolSize - 6:
+        # handle non secure request
+        if clientsPool.clientsInProcess.len != 0:
+          spawn self.clientListener(
+            clientsPool.clientsInProcess[0].client.deepCopy,
+            clientsPool.clientsInProcess[0].callback.deepCopy)
+          clientsPool.clientsInProcess.delete(0)
+
+        # handle secure request
+        if clientsPool.clientsSecureInProcess.len != 0:
+          spawn self.clientListener(
+            clientsPool.clientsSecureInProcess[0].client.deepCopy,
+            clientsPool.clientsSecureInProcess[0].callback.deepCopy)
+          clientsPool.clientsSecureInProcess.delete(0)
+
+        clientsPool.workerThreadsCount += 1
 
 proc doServe(
   self: ZFBlast,
@@ -535,9 +578,14 @@ proc doServe(
 
     while true:
       try:
+        lock.withLock:
+          if clientsPool.clientsInProcess.len == 0 and clientsPool.clients.len != 0:
+            clientsPool.clientsInProcess = clientsPool.clientsInProcess & clientsPool.clients.deepCopy
+            clientsPool.clients.delete(0, clientsPool.clients.high)
+
         var client: Socket
         self.server.accept(client)
-        spawn self.clientListener(client, callback)
+        clientsPool.clients.add((client.deepCopy, callback.deepCopy))
 
       except Exception as ex:
         # show trace
@@ -567,6 +615,11 @@ when WITH_SSL:
 
       while true:
         try:
+          lock.withLock:
+            if clientsPool.clientsSecureInProcess.len == 0 and clientsPool.clientsSecure.len != 0:
+              clientsPool.clientsSecureInProcess = clientsPool.clientsSecureInProcess & clientsPool.clientsSecure.deepCopy
+              clientsPool.clientsSecure.delete(0, clientsPool.clientsSecure.high)
+
           var client: Socket
           self.sslServer.accept(client)
           let (host, port) = self.sslServer.getLocalAddr()
@@ -583,7 +636,7 @@ when WITH_SSL:
           wrapConnectedSocket(sslContext, client,
             SslHandshakeType.handshakeAsServer, &"{host}:{port}")
 
-          self.clientListener(client, callback)
+          clientsPool.clientsSecure.add((client.deepCopy, callback.deepCopy))
 
         except Exception as ex:
           # show trace
@@ -601,12 +654,15 @@ when WITH_SSL:
 proc serve*(
   self: ZFBlast,
   callback: proc (ctx: HttpContext) {.gcsafe.}) {.gcsafe.} =
+
+  clientsPool = cast[ptr ClientsPool](alloc0(sizeof(ClientsPool)))
+  lock.initLock
+
   spawn self.doServe(callback)
   when WITH_SSL:
     spawn self.doServeSecure(callback)
 
-  while true:
-    60000.sleep
+  self.startClientsPool()
 
 # create zfblast server with initial settings
 # default value trace is off

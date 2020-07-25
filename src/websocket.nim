@@ -201,7 +201,7 @@ proc newWebSocket*(
   WebSocket {.gcsafe.} =
   # create new web socket
   # default state is WSState.HandShake
-  let hashId = now().utc().format("yyyy-MM-dd HH:mm:ss:ffffff")
+  let hashId = now().utc().format("yyyy-MM-dd HH:mm:ss:ffffff".initTimeFormat)
   return WebSocket(
     state: state,
     statusCode: statusCode,
@@ -215,18 +215,14 @@ proc handShake*(
   if self.state == WSState.HandShake:
     # do handshake process
     if handShakeKey != "":
-      let acceptHandShakeKey =
-        compute(handShakeKey & WS_MAGIC_STRING).
-        toBase64()
-
       var headers = ""
       headers &= &"{HTTP_VER} 101 Switching Protocols{CRLF}"
       headers &= &"Server: {SERVER_ID} {SERVER_VER}{CRLF}"
       headers &= "Date: " &
-        format(now().utc, "ddd, dd MMM yyyy HH:mm:ss") & &" GMT{CRLF}"
+        now().utc().format("ddd, dd MMM yyyy HH:mm:ss".initTimeFormat) & &" GMT{CRLF}"
       headers &= &"Connection: Upgrade{CRLF}"
       headers &= &"Upgrade: websocket{CRLF}"
-      headers &= &"Sec-WebSocket-Accept: {acceptHandShakeKey}{CRLF}"
+      headers &= &"Sec-WebSocket-Accept: {compute(handShakeKey & WS_MAGIC_STRING).toBase64}{CRLF}"
 
       # additional handshake header
       for k, v in self.handShakeResHeaders.pairs:
