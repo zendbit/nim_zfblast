@@ -553,6 +553,7 @@ proc startClientsPool(self: ZFBlast) {.gcsafe.} =
             clientsPool.clientsInProcess[0].client.deepCopy,
             clientsPool.clientsInProcess[0].callback.deepCopy)
           clientsPool.clientsInProcess.delete(0)
+          clientsPool.workerThreadsCount += 1
 
         # handle secure request
         if clientsPool.clientsSecureInProcess.len != 0:
@@ -560,8 +561,7 @@ proc startClientsPool(self: ZFBlast) {.gcsafe.} =
             clientsPool.clientsSecureInProcess[0].client.deepCopy,
             clientsPool.clientsSecureInProcess[0].callback.deepCopy)
           clientsPool.clientsSecureInProcess.delete(0)
-
-        clientsPool.workerThreadsCount += 1
+          clientsPool.workerThreadsCount += 1
 
 proc doServe(
   self: ZFBlast,
@@ -579,10 +579,10 @@ proc doServe(
     while true:
       try:
         lock.withLock:
-          if clientsPool.clientsInProcess.len == 0 and clientsPool.clients.len != 0:
+          if clientsPool.clientsInProcess.len == 0 and clientsPool.clients.len != 0: 
             clientsPool.clientsInProcess = clientsPool.clientsInProcess & clientsPool.clients.deepCopy
             clientsPool.clients.delete(0, clientsPool.clients.high)
-
+        
         var client: Socket
         self.server.accept(client)
         clientsPool.clients.add((client.deepCopy, callback.deepCopy))
