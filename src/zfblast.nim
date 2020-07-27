@@ -9,7 +9,7 @@
   HTTP/1.1 implementation in nim lang depend on RFC (https://tools.ietf.org/html/rfc2616)
   Supporting Keep Alive to maintain persistent connection.
 ]#
-import nativesockets, strutils, os, base64, math, streams, net, threadpool, sequtils, times
+import nativesockets, strutils, os, base64, math, streams, net, threadpool, sequtils, times, locks
 export nativesockets, strutils, os, base64, math, streams, net
 
 import httpcontext, websocket, constants
@@ -50,6 +50,7 @@ type
     keepAliveMax*: int
     # Keep-Alive timeout
     keepAliveTimeout*: int
+    keepAlive*: bool
     # serve unsecure (http)
     server: Socket
     # serve secure (https)
@@ -121,7 +122,9 @@ proc isKeepAlive(
     httpContext.request.headers.getHttpHeaderValues("Connection")
   if keepAliveHeader != "":
     if keepAliveHeader.toLower().find("close") == -1 and
-      keepAliveHeader.toLower().find("keep-alive") != -1:
+      keepAliveHeader.toLower().find("keep-alive") != -1 and
+      httpContext.keepAliveCount < (httpContext.keepAliveMax - 1) and
+      (getTime().toUnix - httpContext.keepAliveRequestTime) < (httpContext.keepAliveTimeout - 1):
       return true
 
   return false
@@ -130,7 +133,6 @@ proc isKeepAlive(
 proc send*(
   self: ZFBlast,
   httpContext: HttpContext) {.gcsafe.} =
-
   let client = httpContext.client
   let request = httpContext.request
   let response = httpContext.response
@@ -141,8 +143,10 @@ proc send*(
   var headers = ""
   headers &= &"{HTTP_VER} {response.httpCode}{CRLF}"
   headers &= &"Server: {SERVER_ID} {SERVER_VER}{CRLF}"
-  headers &= "Date: " &
-    now().utc().format("ddd, dd MMM yyyy HH:mm:ss".initTimeFormat) & &" GMT{CRLF}"
+
+  if response.headers.getHttpHeaderValues("Date") == "":
+    headers &= "Date: " &
+      now().utc().format("ddd, dd MMM yyyy HH:mm:ss".initTimeFormat) & &" GMT{CRLF}"
 
   if isKeepAlive:
     if response.headers.getHttpHeaderValues("Connection") == "":
@@ -166,17 +170,24 @@ proc send*(
 
   headers &= CRLF
 
-  try:
-    if not client.isNil:
-      if request.httpMethod == HttpHead:
-        client.send(headers)
-      else:
-        client.send(headers & contentBody)
-  except Exception:
-    discard
-  
+  var clientClosed = false
+  if not client.isNil:
+    if request.httpMethod == HttpHead:
+      if not client.trySend(headers):
+        client.close
+        clientClosed = true
+    else:
+      if not client.trySend(headers & contentBody):
+        client.close
+        clientClosed = true
+
   if not isKeepAlive and not client.isNil:
     client.close
+    clientClosed = true
+
+  if clientClosed:
+    httpContext.keepAliveCount = 0
+    httpContext.keepAliveRequestTime = 0
 
   # clean up all string stream request and response
   httpContext.clear()
@@ -346,8 +357,8 @@ proc clientHandler(
   # only parse the header if websocket not initilaized
   # if nitialized indicate that websicket already connected
   if httpContext.webSocket.isNil:
-    let line = client.recvLine()
-    if line == "":
+    var line = client.recvLine(self.keepAliveTimeout * 50)
+    if line.strip == "":
       client.close
       return
 
@@ -404,10 +415,7 @@ proc clientHandler(
 
   # parse general header
   while isRequestHeaderValid:
-    let line = client.recvLine()
-    # pull reqeust @@ -430,11 +430,8 @@ proc clientHandler(
-    # qbradley
-    # https://github.com/zendbit/nim.zfblast/commits?author=qbradley
+    let line = client.recvLine(self.keepAliveTimeout * 50)
     let headers = line.strip().parseHeader
     let headerKey = headers.key.strip()
     let headerValue = headers.value
@@ -488,7 +496,7 @@ proc clientHandler(
     elif not httpContext.webSocket.isNil:
       self.webSocketHandler(httpContext, callback)
 
-  elif not httpContext.client.isNil:
+  elif not client.isNil:
     self.send(httpContext)
 
 # handle client listener
@@ -501,15 +509,19 @@ proc clientListener(
   try:
     # setup http context
     #let (clientHost, clientPort) = client.getPeerAddr
+    self.keepAliveMax = 40
+    self.keepAliveTimeout = 10
     let httpContext = newHttpContext(
       client = client,
       keepAliveTimeout = self.keepAliveTimeout,
       keepAliveMax = self.keepAliveMax)
+    httpContext.keepAliveRequestTime = getTime().toUnix
 
     httpContext.send = proc (ctx: HttpContext) {.gcsafe.} =
       self.send(ctx)
 
     while not client.isNil:
+      httpContext.keepAliveCount.inc
       self.clientHandler(httpContext, callback)
 
   except Exception as ex:
@@ -537,10 +549,10 @@ proc doServe(
     echo &"Listening non secure (plain) on http://{host}:{port}"
 
     while true:
-      try: 
+      try:
         var client: Socket
         self.server.accept(client)
-        spawn self.clientListener(client.deepCopy, callback.deepCopy)
+        spawn self.clientListener(client, callback)
 
       except Exception as ex:
         # show trace
@@ -586,7 +598,7 @@ when WITH_SSL:
           wrapConnectedSocket(sslContext, client,
             SslHandshakeType.handshakeAsServer, &"{host}:{port}")
 
-          spawn self.clientListener(client.deepCopy, callback.deepCopy)
+          spawn self.clientListener(client, callback)
 
         except Exception as ex:
           # show trace
@@ -623,8 +635,9 @@ proc newZFBlast*(
   reusePort:bool = false,
   sslSettings: SslSettings = nil,
   maxBodyLength: int = 268435456,
-  keepAliveMax: int = 20,
+  keepAliveMax: int = 40,
   keepAliveTimeout: int = 10,
+  keepAlive: bool = false,
   tmpDir: string = getAppDir().joinPath(".tmp"),
   tmpBodyDir: string = getAppDir().joinPath(".tmp", "body"),
   readBodyBuffer: int = 1024): ZFBlast {.gcsafe.} =
@@ -639,6 +652,7 @@ proc newZFBlast*(
     maxBodyLength: maxBodyLength,
     keepAliveTimeout: keepAliveTimeout,
     keepAliveMax: keepAliveMax,
+    keepAlive: keepAlive,
     tmpDir: tmpDir,
     readBodyBuffer: readBodyBuffer,
     tmpBodyDir: tmpBodyDir)

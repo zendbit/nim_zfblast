@@ -65,6 +65,8 @@ type
     keepAliveTimeout*: int
     # will true if connection is websocket
     webSocket*: WebSocket
+    keepAliveCount*: int
+    keepAliveRequestTime*: int64
 
 #[
   Request type procedures
