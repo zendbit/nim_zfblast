@@ -12,8 +12,8 @@
 ]#
 
 # std
-import random, times, net, httpcore, strformat
-export random, times, net, httpcore, strformat
+import random, times, asyncnet, httpcore, strformat, asyncdispatch
+export random, times, asyncnet, httpcore, strformat, asyncdispatch
 
 # nimble
 import sha1
@@ -59,7 +59,7 @@ type
     payloadData*: string
 
   WebSocket* = ref object
-    client*: Socket
+    client*: AsyncSocket
     state*: WSState
     inFrame*: WSFrame
     outFrame*: WSFrame
@@ -195,7 +195,7 @@ proc newWSFrame*(
   WebSocket type procedures
 ]#
 proc newWebSocket*(
-  client: Socket,
+  client: AsyncSocket,
   state: WSState = WSState.HandShake,
   statusCode: WSStatusCode = WSStatusCode.HandShakeFailed):
   WebSocket {.gcsafe.} =
@@ -210,7 +210,7 @@ proc newWebSocket*(
 
 proc handShake*(
   self: WebSocket,
-  handShakeKey: string) {.gcsafe.} =
+  handShakeKey: string) {.async gcsafe.} =
   # create handshake with given handshake key
   if self.state == WSState.HandShake:
     # do handshake process
@@ -231,16 +231,16 @@ proc handShake*(
       headers &= CRLF
 
       # send handshare response
-      self.client.send(headers)
+      await self.client.send(headers)
 
 proc send*(self: WebSocket) {.gcsafe.} =
   # send the websocket payload
-  self.client.send($self.outFrame)
+  waitFor self.client.send($self.outFrame)
 
 proc send*(
   self: WebSocket,
   frame: WSFrame) {.gcsafe.} =
   # send the websocket payload overwrite current outFrame with frame
   self.outFrame = frame
-  self.client.send($self.outFrame)
+  waitFor self.client.send($self.outFrame)
 ###

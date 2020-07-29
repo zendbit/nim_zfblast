@@ -11,8 +11,8 @@
 ]#
 
 # std
-import net, httpcore
-export net, httpcore
+import asyncnet, httpcore
+export asyncnet, httpcore
 
 # nimble
 import uri3
@@ -51,7 +51,7 @@ type
     # Request type instance
     request*: Request
     # client asyncsocket for communicating to client
-    client*: Socket
+    client*: AsyncSocket
     # Response type instance
     response*: Response
     # send response to client, this is bridge to ZFBlast send()
@@ -60,13 +60,9 @@ type
     # read RFC (https://tools.ietf.org/html/rfc2616)
     # section Keep-Alive and Connection
     # for improving response performance
-    keepAliveMax*: int
-    # Keep-Alive timeout
-    keepAliveTimeout*: int
+    keepAlive*: bool
     # will true if connection is websocket
     webSocket*: WebSocket
-    keepAliveCount*: int
-    keepAliveRequestTime*: int64
 
 #[
   Request type procedures
@@ -112,11 +108,9 @@ proc newResponse*(
 ]#
 
 proc newHttpContext*(
-  client: Socket,
+  client: AsyncSocket,
   request: Request = newRequest(),
-  response: Response = newResponse(body = ""),
-  keepAliveMax: int = 10,
-  keepAliveTimeout: int = 20): HttpContext {.gcsafe.} =
+  response: Response = newResponse(body = "")): HttpContext {.gcsafe.} =
   # create HttpContext instance
   # this will be the main HttpContext
   # will be contain:
@@ -131,9 +125,7 @@ proc newHttpContext*(
   return HttpContext(
     client: client,
     request: request,
-    response: response,
-    keepAliveMax: keepAliveMax,
-    keepAliveTimeout: keepAliveTimeout)
+    response: response)
 
 proc resp*(self: HttpContext) {.gcsafe.} =
   # send response to client
