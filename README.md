@@ -9,64 +9,6 @@ read persistent connection RFC (https://tools.ietf.org/html/rfc2616)
 From version 0.1.6 already support websocket
 ***Support websocket*** RFC (https://tools.ietf.org/html/rfc6455)
 
-Last test performatnce with 100000 request with 100 concurrent client
-```
-amru@Amru-Macbook-Air ~ % ab -n 100000 -c 100  http://127.0.0.1:8080/index.html
-This is ApacheBench, Version 2.3 <$Revision: 1843412 $>
-Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/
-Licensed to The Apache Software Foundation, http://www.apache.org/
-
-Benchmarking 127.0.0.1 (be patient)
-Completed 10000 requests
-Completed 20000 requests
-Completed 30000 requests
-Completed 40000 requests
-Completed 50000 requests
-Completed 60000 requests
-Completed 70000 requests
-Completed 80000 requests
-Completed 90000 requests
-Completed 100000 requests
-Finished 100000 requests
-
-
-Server Software:        ZFBlast
-Server Hostname:        127.0.0.1
-Server Port:            8080
-
-Document Path:          /index.html
-Document Length:        248 bytes
-
-Concurrency Level:      100
-Time taken for tests:   781.950 seconds
-Complete requests:      100000
-Failed requests:        0
-Total transferred:      44600000 bytes
-HTML transferred:       24800000 bytes
-Requests per second:    127.89 [#/sec] (mean)
-Time per request:       781.950 [ms] (mean)
-Time per request:       7.819 [ms] (mean, across all concurrent requests)
-Transfer rate:          55.70 [Kbytes/sec] received
-
-Connection Times (ms)
-              min  mean[+/-sd] median   max
-Connect:        0    0   5.7      0     272
-Processing:    15  781 191.3    706    1801
-Waiting:       12  781 191.2    706    1801
-Total:         17  781 191.3    706    1801
-
-Percentage of the requests served within a certain time (ms)
-  50%    706
-  66%    745
-  75%    776
-  80%    797
-  90%   1065
-  95%   1261
-  98%   1456
-  99%   1559
- 100%   1801 (longest request)
-```
-
 Nimble installation
 ===================
 
