@@ -68,7 +68,7 @@ proc trace*(cb: proc ():void {.gcsafe.}) {.gcsafe.} =
     except Exception as ex:
       echo ex.msg
 
-proc getHttpHeaderValues*(httpHeaders: HttpHeaders, key: string): HttpHeaderValues =
+proc getValues*(httpHeaders: HttpHeaders, key: string): HttpHeaderValues =
   var headers: HttpHeaderValues = httpHeaders.getOrDefault(key)
   if headers == "":
     return httpHeaders.getOrDefault(key.toLower())
@@ -116,7 +116,7 @@ proc isKeepAlive(
   httpContext: HttpContext): bool =
 
   let keepAliveHeader =
-    httpContext.request.headers.getHttpHeaderValues("Connection")
+    httpContext.request.headers.getValues("Connection")
   if keepAliveHeader != "":
     if keepAliveHeader.toLower().find("close") == -1 and
       keepAliveHeader.toLower().find("keep-alive") != -1 and
@@ -140,12 +140,12 @@ proc send*(
   headers &= &"{HTTP_VER} {response.httpCode}{CRLF}"
   headers &= &"Server: {SERVER_ID} {SERVER_VER}{CRLF}"
 
-  if response.headers.getHttpHeaderValues("Date") == "":
+  if response.headers.getValues("Date") == "":
     headers &= "Date: " &
       now().utc().format("ddd, dd MMM yyyy HH:mm:ss".initTimeFormat) & &" GMT{CRLF}"
 
   if isKeepAlive:
-    if response.headers.getHttpHeaderValues("Connection") == "":
+    if response.headers.getValues("Connection") == "":
       headers &= &"Connection: keep-alive{CRLF}"
 
   else:
@@ -153,7 +153,7 @@ proc send*(
 
   contentBody = response.body
 
-  if response.headers.getHttpHeaderValues("Content-Length") == "":
+  if response.headers.getValues("Content-Length") == "":
     headers &= &"Content-Length: {contentBody.len}{CRLF}"
 
   for k, v in response.headers.pairs:
@@ -309,7 +309,7 @@ proc webSocketHandler(
     if webSocket.state == WSState.HandShake:
       # do handshake process
       let handshakeKey =
-        httpContext.request.headers.getHttpHeaderValues("Sec-WebSocket-Key")
+        httpContext.request.headers.getValues("Sec-WebSocket-Key")
         .strip()
 
       await webSocket.handShake(handshakeKey)
@@ -429,7 +429,7 @@ proc clientHandler(
 
     #httpContext.request.body.writeLine(line)
     let contentLength =
-      httpContext.request.headers.getHttpHeaderValues("content-length")
+      httpContext.request.headers.getValues("content-length")
 
     # check body content
     if contentLength != "":
