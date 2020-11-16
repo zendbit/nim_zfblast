@@ -68,7 +68,10 @@ proc trace*(cb: proc ():void {.gcsafe.}) {.gcsafe.} =
     except Exception as ex:
       echo ex.msg
 
-proc getValues*(httpHeaders: HttpHeaders, key: string): HttpHeaderValues =
+proc getValues*(
+  httpHeaders: HttpHeaders,
+  key: string): HttpHeaderValues =
+
   var headers: HttpHeaderValues = httpHeaders.getOrDefault(key)
   if headers == "":
     return httpHeaders.getOrDefault(key.toLower())
