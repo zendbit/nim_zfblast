@@ -233,14 +233,14 @@ proc handShake*(
       # send handshare response
       await self.client.send(headers)
 
-proc send*(self: WebSocket) {.gcsafe.} =
+proc send*(self: WebSocket) {.gcsafe async.} =
   # send the websocket payload
-  waitFor self.client.send($self.outFrame)
+  await self.client.send($self.outFrame)
 
 proc send*(
   self: WebSocket,
-  frame: WSFrame) {.gcsafe.} =
+  frame: WSFrame) {.gcsafe async.} =
   # send the websocket payload overwrite current outFrame with frame
   self.outFrame = frame
-  waitFor self.client.send($self.outFrame)
+  await self.client.send($self.outFrame)
 ###

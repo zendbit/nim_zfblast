@@ -131,7 +131,7 @@ proc isKeepAlive(
 # send response to the client
 proc send*(
   self: ZFBlast,
-  httpContext: HttpContext) {.gcsafe.} =
+  httpContext: HttpContext) {.gcsafe async.} =
   let client = httpContext.client
   let request = httpContext.request
   let response = httpContext.response
@@ -166,9 +166,9 @@ proc send*(
 
   if not client.isClosed:
     if request.httpMethod == HttpHead:
-      waitFor client.send(headers)
+      await client.send(headers)
     else:
-      waitFor client.send(headers & contentBody)
+      await client.send(headers & contentBody)
 
     if not isKeepAlive:
       client.close
@@ -180,7 +180,7 @@ proc send*(
 proc webSocketHandler(
   self: ZFBlast,
   httpContext: HttpContext,
-  callback: proc (ctx: HttpContext) {.gcsafe.}) {.async gcsafe.} =
+  callback: proc (ctx: HttpContext) {.gcsafe async.}) {.async gcsafe.} =
 
   let client = httpContext.client
   let webSocket = httpContext.webSocket
@@ -266,7 +266,7 @@ proc webSocketHandler(
       # response the ping with same message buat change the opcode to pong
       webSocket.outFrame = deepCopy(webSocket.inFrame)
       webSocket.outFrame.opCode = WSOpCode.Pong.uint8
-      webSocket.send()
+      await webSocket.send()
       # if ping dont call the callback
       return
 
@@ -303,7 +303,7 @@ proc webSocketHandler(
   # call callback
   # on data received
   if not callback.isNil:
-    httpContext.callback
+    await httpContext.callback
 
     # if State handshake
     # then send header handshake
@@ -327,13 +327,13 @@ proc webSocketHandler(
         webSocket.hashId,
         1,
         WSOpCode.Ping.uint8)
-      webSocket.send()
+      await webSocket.send()
 
 # handle client connections
 proc clientHandler(
   self: ZFBlast,
   httpContext: HttpContext,
-  callback: proc (ctx: HttpContext) {.gcsafe.}) {.async gcsafe.} =
+  callback: proc (ctx: HttpContext) {.gcsafe async.}) {.async gcsafe.} =
 
   let client = httpContext.client
 
@@ -473,26 +473,26 @@ proc clientHandler(
     if isRequestHeaderValid and httpContext.webSocket.isNil:
       # if header valid and not web socket
       if not callback.isNil:
-        httpContext.callback
+        await httpContext.callback
 
     # if websocket and already handshake
     elif not httpContext.webSocket.isNil:
       await self.webSocketHandler(httpContext, callback)
 
   else:
-    self.send(httpContext)
+    await self.send(httpContext)
 
 # handle client listener
 # will listen until the client socket closed
 proc clientListener(
   self: ZFBlast,
   client: AsyncSocket,
-  callback: proc (ctx: HttpContext) {.gcsafe.}) {.async gcsafe.} =
+  callback: proc (ctx: HttpContext) {.gcsafe async.}) {.async gcsafe.} =
 
   let httpContext = newHttpContext(client = client)
   httpContext.keepAlive = true
-  httpContext.send = proc (ctx: HttpContext) {.gcsafe.} =
-    self.send(ctx)
+  httpContext.send = proc (ctx: HttpContext) {.gcsafe async.} =
+    await self.send(ctx)
 
   try:
     while not client.isClosed:
@@ -509,9 +509,9 @@ proc clientListener(
         echo "#== end"
         echo ""
 
-proc doServe(
+proc doServe*(
   self: ZFBlast,
-  callback: proc (ctx: HttpContext) {.gcsafe.}) {.async gcsafe.} =
+  callback: proc (ctx: HttpContext) {.gcsafe async.}) {.async gcsafe.} =
 
   if not self.server.isNil:
     self.server.setSockOpt(OptReuseAddr, self.reuseAddress)
@@ -540,9 +540,9 @@ proc doServe(
 
 # serve secure connection (https)
 when WITH_SSL:
-  proc doServeSecure(
+  proc doServeSecure*(
     self: ZFBlast,
-    callback: proc (ctx: HttpContext) {.gcsafe.}) {.async gcsafe.} =
+    callback: proc (ctx: HttpContext) {.gcsafe async.}) {.async gcsafe.} =
 
     if not self.sslServer.isNil:
       self.sslServer.setSockOpt(OptReuseAddr, self.reuseAddress)
@@ -587,7 +587,7 @@ when WITH_SSL:
 # will have secure and unsecure connection if SslSettings given
 proc serve*(
   self: ZFBlast,
-  callback: proc (ctx: HttpContext) {.gcsafe.}) {.gcsafe.} =
+  callback: proc (ctx: HttpContext) {.gcsafe async.}) {.gcsafe.} =
 
   asyncCheck self.doServe(callback)
   when WITH_SSL:
@@ -673,7 +673,7 @@ if isMainModule:
     Port(8000),
     trace = true)
 
-  zfb.serve(proc (ctx: HttpContext) {.gcsafe.} =
+  zfb.serve(proc (ctx: HttpContext) {.gcsafe async.} =
     case ctx.request.url.getPath
     # http(s)://localhost
     of "/":
@@ -703,6 +703,6 @@ if isMainModule:
       ctx.response.httpCode = Http404
       ctx.response.body = "not found"
 
-    ctx.resp
+    await ctx.resp
   )
 

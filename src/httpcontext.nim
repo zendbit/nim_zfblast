@@ -11,8 +11,8 @@
 ]#
 
 # std
-import asyncnet, httpcore
-export asyncnet, httpcore
+import asyncnet, httpcore, asyncdispatch
+export asyncnet, httpcore, asyncdispatch
 
 # nimble
 import uri3
@@ -55,7 +55,7 @@ type
     # Response type instance
     response*: Response
     # send response to client, this is bridge to ZFBlast send()
-    send*: proc (ctx: HttpContext) {.gcsafe.}
+    send*: proc (ctx: HttpContext) {.gcsafe async.}
     # Keep-Alive header max request with given persistent timeout
     # read RFC (https://tools.ietf.org/html/rfc2616)
     # section Keep-Alive and Connection
@@ -127,10 +127,10 @@ proc newHttpContext*(
     request: request,
     response: response)
 
-proc resp*(self: HttpContext) {.gcsafe.} =
+proc resp*(self: HttpContext) {.gcsafe async.} =
   # send response to client
   if not self.send.isNil:
-    self.send(self)
+    await self.send(self)
 
 proc clear*(self: HttpContext) {.gcsafe.} =
   # clear the context for next persistent connection
