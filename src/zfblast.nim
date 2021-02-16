@@ -107,11 +107,22 @@ proc setupServer(self: ZFBlast) =
   when WITH_SSL:
     if not self.sslSettings.isNil and
       self.sslServer.isNil:
-      if not self.sslSettings.certFile.fileExists:
-        echo "Certificate not found " & self.sslSettings.certFile
-      elif not fileExists(self.sslSettings.keyFile):
-        echo "Private key not found " & self.sslSettings.keyFile
+
+      var certFile = self.sslSettings.certFile
+      if not certFile.fileExists:
+        certFile = getAppDir().joinPath(certFile)
+
+      var keyFile = self.sslSettings.keyFile
+      if not keyFile.fileExists:
+        keyFile = getAppDir().joinPath(keyFile)
+
+      if not certFile.fileExists:
+        echo "Certificate not found " & certFile
+      elif not keyFile.fileExists:
+        echo "Private key not found " & keyFile
       else:
+        self.sslSettings.certFile = certFile
+        self.sslSettings.keyFile = keyFile
         self.sslServer = newAsyncSocket()
 
 proc isKeepAlive(
