@@ -395,7 +395,7 @@ proc clientHandler(
             protocol = "https"
 
         let (address, port) = client.getLocalAddr
-        httpContext.request.url = parseUri3(reqParts[1])
+        httpContext.request.url = parseUri3(reqParts[1].cleanUri)
         httpContext.request.url.setScheme(protocol)
         httpContext.request.url.setDomain(address)
         httpContext.request.url.setPort($port)

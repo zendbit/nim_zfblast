@@ -11,7 +11,7 @@
 ]#
 
 # std
-import asyncnet, httpcore, asyncdispatch
+import asyncnet, httpcore, asyncdispatch, strutils
 export asyncnet, httpcore, asyncdispatch
 
 # nimble
@@ -63,6 +63,13 @@ type
     keepAlive*: bool
     # will true if connection is websocket
     webSocket*: WebSocket
+
+# clean the path if at the and of path contains /
+# remove the / from the end of path
+proc cleanUri*(path: string): string =
+  result = path
+  if result.endsWith("/") and path != "/":
+    result.removeSuffix("/")
 
 #[
   Request type procedures
