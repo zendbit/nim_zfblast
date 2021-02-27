@@ -85,7 +85,7 @@ proc newRequest*(
   # in general this will return Request instance with default value
   # and will be valued with request from client
 
-  return Request(
+  result = Request(
     httpMethod: httpMethod,
     httpVersion: httpVersion,
     url: url,
@@ -104,7 +104,7 @@ proc newResponse*(
   # create Response instance
   # in general this will valued with Response instance with default value
 
-  return Response(
+  result = Response(
     httpCode: httpCode,
     headers: headers,
     body: body)
@@ -129,7 +129,7 @@ proc newHttpContext*(
   #  keepAliveTimeout -> keep alive timeout for persistent connection
   #    default value is 10 seconds
 
-  return HttpContext(
+  result = HttpContext(
     client: client,
     request: request,
     response: response)

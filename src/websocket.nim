@@ -120,9 +120,9 @@ proc encodeDecode*(self: WSFrame): string =
     for i in 0..<self.payloadLen:
       decodedData &= chr(self.payloadData[i].uint8 xor self.maskKey[i mod 4].uint8)
 
-    return decodedData
+    result = decodedData
 
-  return self.payloadData
+  result = self.payloadData
 
 proc `$`*(self: WSFrame): string =
   # conver the websocket frame into string representation
@@ -168,7 +168,7 @@ proc `$`*(self: WSFrame): string =
   # add the payload data
   payloadData &= self.encodeDecode()
 
-  return payloadData
+  result = payloadData
 
 proc newWSFrame*(
   payloadData: string,
@@ -188,7 +188,7 @@ proc newWSFrame*(
   instance.payloadLen = payloadData.len.uint64
   instance.generateMaskKey()
 
-  return instance
+  result = instance
 ###
 
 #[

@@ -74,9 +74,9 @@ proc getValues*(
 
   var headers: HttpHeaderValues = httpHeaders.getOrDefault(key)
   if headers == "":
-    return httpHeaders.getOrDefault(key.toLower())
+    result = httpHeaders.getOrDefault(key.toLower())
 
-  return headers
+  result = headers
 
 #[
     SslSettings type procedures
@@ -87,7 +87,7 @@ proc newSslSettings*(
   port: Port = Port(8443),
   verify: bool = false): SslSettings {.gcsafe.} =
 
-  return SslSettings(
+  result = SslSettings(
     certFile: certFile,
     keyFile: keyFile,
     verify: verify,
@@ -135,9 +135,7 @@ proc isKeepAlive(
     if keepAliveHeader.toLower().find("close") == -1 and
       keepAliveHeader.toLower().find("keep-alive") != -1 and
       httpContext.keepAlive:
-      return true
-
-  return false
+      result = true
 
 # send response to the client
 proc send*(
@@ -661,7 +659,7 @@ proc newZFBlast*(
 
   instance.setupServer
 
-  return instance
+  result = instance
 ###
 
 # test server
