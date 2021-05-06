@@ -1,15 +1,11 @@
-
-#[
-  ZendFlow web framework for nim language
-  This framework if free to use and to modify
-  License: BSD
-  Author: Amru Rosyada
-  Email: amru.rosyada@gmail.com
-  Git: https://github.com/zendbit
-
-  HTTP/1.1 implementation in nim lang depend on RFC (https://tools.ietf.org/html/rfc2616)
-  Supporting Keep Alive to maintain persistent connection.
-]#
+##
+##  zfcore web framework for nim language
+##  This framework if free to use and to modify
+##  License: BSD
+##  Author: Amru Rosyada
+##  Email: amru.rosyada@gmail.com
+##  Git: https://github.com/zendbit/nim.zfblast
+##
 
 # std
 import random, times, asyncnet, httpcore, strformat, asyncdispatch
