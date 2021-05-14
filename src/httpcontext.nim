@@ -63,10 +63,12 @@ type
 
 # clean the path if at the and of path contains /
 # remove the / from the end of path
-proc cleanUri*(path: string): string =
-  result = path
-  if result.endsWith("/") and path != "/":
-    result.removeSuffix("/")
+# return origin and clean uri
+proc cleanUri*(path: string): tuple[origin: string, clean: string] =
+  var url = path
+  if url.endsWith("/") and path != "/":
+    url.removeSuffix("/")
+  result = (path, url)
 
 #[
   Request type procedures
