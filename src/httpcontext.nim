@@ -8,8 +8,8 @@
 ##
 
 # std
-import asyncnet, httpcore, asyncdispatch, strutils
-export asyncnet, httpcore, asyncdispatch
+import asyncnet, httpcore, asyncdispatch, strutils, sugar
+export asyncnet, httpcore, asyncdispatch, sugar
 
 # nimble
 import uri3

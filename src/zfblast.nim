@@ -58,7 +58,7 @@ type
     readBodyBuffer*: int
     tmpBodyDir*: string
 
-proc trace*(cb: proc ():void {.gcsafe.}) {.gcsafe.} =
+proc trace*(cb: proc () {.gcsafe.}) {.gcsafe.} =
   if not isNil(cb):
     try:
       cb()
@@ -296,7 +296,7 @@ proc webSocketHandler(
     else:
       # show trace
       if self.trace:
-        trace proc (): void {.gcsafe.} =
+        trace proc () {.gcsafe.} =
           echo ""
           echo "#== start"
           echo "Websocket opcode not handled."
@@ -508,7 +508,7 @@ proc clientListener(
   except Exception as ex:
     # show trace
     if self.trace:
-      trace proc (): void {.gcsafe.} =
+      trace proc () {.gcsafe.} =
         echo ""
         echo "#== start"
         echo "Client connection closed, accept new session."
@@ -537,7 +537,7 @@ proc doServe*(
       except Exception as ex:
         # show trace
         if self.trace:
-          trace proc (): void {.gcsafe.} =
+          trace proc () {.gcsafe.} =
             echo ""
             echo "#== start"
             echo "Failed to serve."
@@ -582,7 +582,7 @@ when WITH_SSL:
         except Exception as ex:
           # show trace
           if self.trace:
-            trace proc (): void {.gcsafe.} =
+            trace proc () {.gcsafe.} =
               echo ""
               echo "#== start"
               echo "Failed to serve."
@@ -636,7 +636,7 @@ proc newZFBlast*(
 
   # show traceging output
   if trace:
-    trace proc (): void {.gcsafe.} =
+    trace proc () {.gcsafe.} =
       echo ""
       echo "#== start"
       echo "Initialize ZFBlast"
