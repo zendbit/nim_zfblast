@@ -435,7 +435,7 @@ proc clientHandler(
   var isErrorBodyContent = false
   # parse body
   if isRequestHeaderValid and
-    httpContext.request.httpMethod in [HttpPost, HttpPut, HttpPatch]:
+    httpContext.request.httpMethod in [HttpPost, HttpPut, HttpPatch, HttpDelete]:
 
     #httpContext.request.body.writeLine(line)
     let contentLength =
