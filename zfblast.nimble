@@ -1,9 +1,9 @@
 # Package
-version     = "0.2.2"
+version     = "0.2.3"
 author      = "Amru Rosyada"
 description = "High performance http server (https://tools.ietf.org/html/rfc2616) with persistent connection for nim language"
 license     = "BSD"
-srcDir      = "src"
+#srcDir      = "src"
 
 # Deps
 requires "nim >= 1.4.0"
