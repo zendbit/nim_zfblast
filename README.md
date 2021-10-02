@@ -24,6 +24,8 @@ need to compiled with -d:ssl and make sure openssl installed
 ```
 
 ```nim
+import zfblast/server
+
 let zfb = newZFBlast(
     "0.0.0.0",
     Port(8000),
