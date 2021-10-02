@@ -236,6 +236,7 @@ proc handShake*(
 
 proc send*(self: WebSocket) {.gcsafe async.} =
   # send the websocket payload
+  self.outFrame.payloadLen = self.outFrame.payloadData.len.uint64
   await self.client.send($self.outFrame)
 
 proc send*(
@@ -243,5 +244,6 @@ proc send*(
   frame: WSFrame) {.gcsafe async.} =
   # send the websocket payload overwrite current outFrame with frame
   self.outFrame = frame
+  self.outFrame.payloadLen = self.outFrame.payloadData.len.uint64
   await self.client.send($self.outFrame)
 ###
