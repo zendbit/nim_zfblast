@@ -264,9 +264,7 @@ proc webSocketHandler(
               frame.payloadData &= await client.recv(restToRetrieve.int32)
 
       else:
-        webSocket.state = WSState.Close
         webSocket.statusCode = WSStatusCode.PayloadToBig
-        client.close
 
     case frame.opCode
     of WSOpCode.Ping.uint8:
@@ -330,11 +328,11 @@ proc webSocketHandler(
 
       # send ping with hashId
       # make sure the connection is created
-      webSocket.outFrame = newWSFrame(
-        webSocket.hashId,
-        1,
-        WSOpCode.Ping.uint8)
-      await webSocket.send()
+      #webSocket.outFrame = newWSFrame(
+      #  webSocket.hashId,
+      #  1,
+      #  WSOpCode.Ping.uint8)
+      #await webSocket.send()
 
 # handle client connections
 proc clientHandler(

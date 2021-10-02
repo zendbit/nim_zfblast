@@ -53,6 +53,7 @@ type
     payloadLen*: uint64
     maskKey*: string
     payloadData*: string
+    isFinalFrame*: bool
 
   WebSocket* = ref object
     client*: AsyncSocket
@@ -92,6 +93,7 @@ proc parseHeaders*(
     self.opCode = b0 and 0x0f
     self.mask = (b1 and 0x80) shr 7
     self.payloadLen = (b1 and 0x7f)
+    self.isFinalFrame = self.fin == 0x1
 
 proc parsePayloadLen*(
   self: WSFrame,
@@ -117,8 +119,9 @@ proc encodeDecode*(self: WSFrame): string =
       decodedData &= chr(self.payloadData[i].uint8 xor self.maskKey[i mod 4].uint8)
 
     result = decodedData
-
-  result = self.payloadData
+  
+  else:
+    result = self.payloadData
 
 proc `$`*(self: WSFrame): string =
   # conver the websocket frame into string representation
@@ -228,6 +231,9 @@ proc handShake*(
 
       # send handshare response
       await self.client.send(headers)
+    
+    else:
+      self.statusCode = WSStatusCode.HandShakeFailed
 
 proc send*(self: WebSocket) {.gcsafe async.} =
   # send the websocket payload
