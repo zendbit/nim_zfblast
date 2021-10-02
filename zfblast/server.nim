@@ -264,12 +264,14 @@ proc webSocketHandler(
               frame.payloadData &= await client.recv(restToRetrieve.int32)
 
       else:
-        websocket.state = WSState.Close
+        webSocket.state = WSState.Close
         webSocket.statusCode = WSStatusCode.PayloadToBig
         client.close
 
     else:
+      webSocket.state = WSState.Close
       webSocket.statusCode = WSStatusCode.BadPayload
+      client.close
 
     case frame.opCode
     of WSOpCode.Ping.uint8:
@@ -330,14 +332,6 @@ proc webSocketHandler(
       # send ping after handshake
       webSocket.state = WSState.Open
       webSocket.statusCode = WSStatusCode.Ok
-
-      # send ping with hashId
-      # make sure the connection is created
-      #webSocket.outFrame = newWSFrame(
-      #  webSocket.hashId,
-      #  1,
-      #  WSOpCode.Ping.uint8)
-      #await webSocket.send()
 
 # handle client connections
 proc clientHandler(
@@ -487,7 +481,10 @@ proc clientHandler(
 
     # if websocket and already handshake
     elif not httpContext.webSocket.isNil:
-      await self.webSocketHandler(httpContext, callback)
+      try:
+        await self.webSocketHandler(httpContext, callback)
+      except Exception as e:
+        echo e.msg
 
   else:
     await self.send(httpContext)
