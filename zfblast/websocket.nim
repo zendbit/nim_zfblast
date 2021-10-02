@@ -54,7 +54,6 @@ type
     payloadLen*: uint64
     maskKey*: string
     payloadData*: string
-    isFinalFrame*: bool
 
   WebSocket* = ref object
     client*: AsyncSocket
@@ -94,7 +93,6 @@ proc parseHeaders*(
     self.opCode = b0 and 0x0f
     self.mask = (b1 and 0x80) shr 7
     self.payloadLen = (b1 and 0x7f)
-    self.isFinalFrame = self.fin == 0x1
 
 proc parsePayloadLen*(
   self: WSFrame,
