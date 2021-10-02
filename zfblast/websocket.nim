@@ -29,11 +29,12 @@ type
     Ok = 1000,
     GoingAway = 1001,
     BadProtocol = 1002,
-    Refused = 1003,
+    UnknownOpcode = 1003,
     BadPayload = 1007,
     ViolatesPolicy = 1008,
     PayloadToBig = 1009,
     HandShakeFailed = 1010
+    UnexpectedClose = 1011
 
   WSOpCode* = enum
     ContinuationFrame = 0x0

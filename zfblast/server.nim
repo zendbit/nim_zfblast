@@ -264,7 +264,12 @@ proc webSocketHandler(
               frame.payloadData &= await client.recv(restToRetrieve.int32)
 
       else:
+        websocket.state = WSState.Close
         webSocket.statusCode = WSStatusCode.PayloadToBig
+        client.close
+
+    else:
+      webSocket.statusCode = WSStatusCode.BadPayload
 
     case frame.opCode
     of WSOpCode.Ping.uint8:
@@ -280,7 +285,7 @@ proc webSocketHandler(
       if frame.encodeDecode() != webSocket.hashId:
         # close the connection if not valid
         webSocket.state = WSState.Close
-        webSocket.statusCode = WSStatusCode.Refused
+        webSocket.statusCode = WSStatusCode.UnknownOpcode
         client.close
       else:
         # if valid just return and wait next message
@@ -288,7 +293,7 @@ proc webSocketHandler(
 
     of WSOpCode.ConnectionClose.uint8:
       webSocket.state = WSState.Close
-      webSocket.statusCode = WSStatusCode.GoingAway
+      webSocket.statusCode = WSStatusCode.UnexpectedClose
       client.close
 
     else:
