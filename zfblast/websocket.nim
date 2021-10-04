@@ -123,6 +123,9 @@ proc encodeDecode*(self: WSFrame): string =
     result = self.payloadData
 
 proc `$`*(self: WSFrame): string =
+  let data = self.encodeDecode()
+  self.payloadLen = data.len.uint64
+
   # conver the websocket frame into string representation
   var payloadData = ""
   # fin(1)|rsv1(1)|rsv2(1)|rsv3(1)|opcode(4)
@@ -164,9 +167,13 @@ proc `$`*(self: WSFrame): string =
     payloadData &= self.maskKey
 
   # add the payload data
-  payloadData &= self.encodeDecode()
+  payloadData &= data
 
   result = payloadData
+
+proc `$>`*(self: WSFrame): string =
+  self.mask = 0x0
+  result = $self
 
 proc newWSFrame*(
   payloadData: string,
@@ -236,14 +243,12 @@ proc handShake*(
 
 proc send*(self: WebSocket) {.gcsafe async.} =
   # send the websocket payload
-  self.outFrame.payloadLen = self.outFrame.payloadData.len.uint64
-  await self.client.send($self.outFrame)
+  await self.client.send($>self.outFrame)
 
 proc send*(
   self: WebSocket,
   frame: WSFrame) {.gcsafe async.} =
   # send the websocket payload overwrite current outFrame with frame
   self.outFrame = frame
-  self.outFrame.payloadLen = self.outFrame.payloadData.len.uint64
-  await self.client.send($self.outFrame)
+  await self.client.send($>self.outFrame)
 ###
