@@ -7,11 +7,39 @@
 ##  Git: https://github.com/zendbit/nim.zfblast
 ##
 
-import nativesockets, strutils, net, os, base64, math, streams , times, asyncnet, asyncdispatch
-export nativesockets, strutils, os, base64, math, streams, asyncnet, asyncdispatch
+##  std
+import
+  nativesockets,
+  strutils,
+  net,
+  os,
+  base64,
+  math,
+  streams,
+  times,
+  asyncnet,
+  asyncdispatch
 
-import httpcontext, websocket, constants
-export httpcontext, websocket, constants
+export
+  nativesockets,
+  strutils,
+  os,
+  base64,
+  math,
+  streams,
+  asyncnet,
+  asyncdispatch
+
+##  zfblast
+import
+  httpcontext,
+  websocket,
+  constants
+
+export
+  httpcontext,
+  websocket,
+  constants
 
 type
   # SslSettings type for secure connection

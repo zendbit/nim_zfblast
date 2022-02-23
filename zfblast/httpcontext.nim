@@ -8,16 +8,29 @@
 ##
 
 # std
-import asyncnet, httpcore, asyncdispatch, strutils, sugar
-export asyncnet, httpcore, asyncdispatch, sugar
+import
+  asyncnet,
+  httpcore,
+  asyncdispatch,
+  strutils,
+  sugar
+
+export
+  asyncnet,
+  httpcore,
+  asyncdispatch,
+  sugar
 
 # nimble
 import uri3
 export uri3
 
-# local
-import constants, websocket
-export constants, websocket
+# zfblast import
+import constants,
+  websocket
+
+export constants,
+  websocket
 
 type
   # Request type

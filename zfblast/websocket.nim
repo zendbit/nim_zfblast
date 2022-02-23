@@ -8,14 +8,27 @@
 ##
 
 # std
-import random, times, asyncnet, httpcore, strformat, asyncdispatch
-export random, times, asyncnet, httpcore, strformat, asyncdispatch
+import
+  random,
+  times,
+  asyncnet,
+  httpcore,
+  strformat,
+  asyncdispatch
+
+export
+  random,
+  times,
+  asyncnet,
+  httpcore,
+  strformat,
+  asyncdispatch
 
 # nimble
 import sha1
 export sha1
 
-# local
+# zfblast
 import constants
 export constants
 
