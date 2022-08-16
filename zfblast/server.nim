@@ -41,6 +41,8 @@ export
   websocket,
   constants
 
+var siteUrl {.threadvar.}: string
+
 type
   # SslSettings type for secure connection
   SslSettings* = ref object
@@ -85,6 +87,9 @@ type
     tmpDir*: string
     readBodyBuffer*: int
     tmpBodyDir*: string
+
+proc getSiteUrl*(): string {.gcsafe.} =
+  result = siteUrl.deepCopy
 
 proc trace*(cb: proc () {.gcsafe.}) {.gcsafe.} =
   if not isNil(cb):
@@ -555,6 +560,8 @@ proc doServe*(
     self.server.listen
 
     let (host, port) = self.server.getLocalAddr
+    # set siteUrl
+    siteUrl = &"http://{host}:{port}"
     echo &"Listening non secure (plain) on http://{host}:{port}"
 
     while true:
@@ -586,6 +593,8 @@ when WITH_SSL:
       self.sslServer.listen
 
       let (host, port) = self.sslServer.getLocalAddr
+      # set siteUrl
+      siteUrl = &"https://{host}:{port}"
       echo &"Listening secure on https://{host}:{port}"
 
       while true:
