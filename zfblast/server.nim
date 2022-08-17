@@ -697,6 +697,14 @@ proc newZFBlast*(
   result = instance
 ###
 
+proc getBuildMode*(): string =
+  ##
+  ##  get build mode will return string "debug" or "release"
+  ##
+  result = "debug"
+  if defined(release):
+    result = "release"
+
 # test server
 if isMainModule:
   #[
