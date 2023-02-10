@@ -41,8 +41,6 @@ export
   websocket,
   constants
 
-var siteUrl {.threadvar.}: string
-
 type
   # SslSettings type for secure connection
   SslSettings* = ref object
@@ -87,6 +85,18 @@ type
     tmpDir*: string
     readBodyBuffer*: int
     tmpBodyDir*: string
+
+var siteUrl {.threadvar.}: string
+var isProduction {.threadvar.}: bool
+
+when defined release:
+  isProduction = true
+
+else:
+  isProduction = false
+
+proc isProductionMode*(): bool =
+  result = isProduction
 
 proc getSiteUrl*(): string {.gcsafe.} =
   result = siteUrl.deepCopy
