@@ -43,7 +43,7 @@ export
 
 type
   # SslSettings type for secure connection
-  SslSettings* = ref object
+  SslSettings* = ref object of RootObj
     # path to certificate file (.pem)
     certFile*: string
     # path to private key file (.pem)
@@ -56,7 +56,7 @@ type
     port*: Port
 
   # ZFBlast type
-  ZFBlast* = ref object
+  ZFBlast* = ref object of RootObj
     # port for unsecure connection (http)
     port*: Port
     # address to bind

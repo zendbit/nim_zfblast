@@ -57,7 +57,7 @@ type
     Ping = 0x9
     Pong = 0xA
 
-  WSFrame* = ref object
+  WSFrame* = ref object of RootObj
     fin*: uint8
     rsv1*: uint8
     rsv2*: uint8
@@ -68,7 +68,7 @@ type
     maskKey*: string
     payloadData*: string
 
-  WebSocket* = ref object
+  WebSocket* = ref object of RootObj
     client*: AsyncSocket
     state*: WSState
     inFrame*: WSFrame
