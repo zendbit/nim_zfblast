@@ -54,6 +54,10 @@ type
     verify*: bool
     # port for ssl
     port*: Port
+    # for CVerifyPeerUseEnvVars
+    caDir*: string
+    caFile*: string
+    useEnv*: bool
 
   # ZFBlast type
   ZFBlast* = ref object of RootObj
@@ -571,8 +575,8 @@ proc doServe*(
 
     let (host, port) = self.server.getLocalAddr
     # set siteUrl
-    siteUrl = &"http://{host}:{port}"
-    echo &"Listening non secure (plain) on http://{host}:{port}"
+    siteUrl = &"http://{self.address}:{port}"
+    echo &"Listening non secure (plain) on {siteUrl}"
 
     while true:
       try:
@@ -604,8 +608,30 @@ when WITH_SSL:
 
       let (host, port) = self.sslServer.getLocalAddr
       # set siteUrl
-      siteUrl = &"https://{host}:{port}"
-      echo &"Listening secure on https://{host}:{port}"
+      siteUrl = &"https://{self.address}:{port}"
+      echo &"Listening secure on {siteUrl}"
+
+      var verifyMode = SslCVerifyMode.CVerifyNone
+      if self.sslSettings.verify:
+        verifyMode = SslCVerifyMode.CVerifyPeer
+
+      var sslContext: SslContext
+
+      # CVerifyPeerUseEnvVars mode
+      if self.sslSettings.useEnv:
+        sslContext = newContext(
+          verifyMode = SslCVerifyMode.CVerifyPeerUseEnvVars,
+          certFile = self.sslSettings.certFile,
+          keyFile = self.sslSettings.keyFile,
+          caDir = self.sslSettings.caDir,
+          caFile = self.sslSettings.caFile)
+
+      else:
+        sslContext = newContext(
+          verifyMode = verifyMode,
+          certFile = self.sslSettings.certFile,
+          keyFile = self.sslSettings.keyFile)
+
 
       while true:
         try:
