@@ -521,6 +521,7 @@ proc clientHandler(
 
   # call the callback
   if not isErrorBodyContent:
+    let bodyCache = httpContext.request.body
     if isRequestHeaderValid and httpContext.webSocket.isNil:
       # if header valid and not web socket
       if not callback.isNil:
@@ -532,6 +533,9 @@ proc clientHandler(
         await self.webSocketHandler(httpContext, callback)
       except Exception as e:
         echo e.msg
+
+    if bodyCache.fileExists():
+      bodyCache.removeFile()
 
   else:
     await self.send(httpContext)
