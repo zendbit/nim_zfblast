@@ -630,9 +630,7 @@ when WITH_SSL:
         sslContext = newContext(
           verifyMode = verifyMode,
           certFile = self.sslSettings.certFile,
-          keyFile = self.sslSettings.keyFile,
-          caFile = self.sslSettings.caFile,
-          caDir = self.sslSettings.caDir)
+          keyFile = self.sslSettings.keyFile)
 
 
       while true:
