@@ -642,15 +642,6 @@ when WITH_SSL:
           var client = await self.sslServer.accept()
           let (host, port) = self.sslServer.getLocalAddr()
 
-          var verifyMode = SslCVerifyMode.CVerifyNone
-          if self.sslSettings.verify:
-            verifyMode = SslCVerifyMode.CVerifyPeer
-
-          let sslContext = newContext(
-            verifyMode = verifyMode,
-            certFile = self.sslSettings.certFile,
-            keyFile = self.sslSettings.keyFile)
-
           wrapConnectedSocket(sslContext, client,
             SslHandshakeType.handshakeAsServer, &"{host}:{port}")
 
