@@ -1,4 +1,4 @@
-This page is deprecated, and merged to [Katalis framework](https://github.com/zendbit/katalis)
+# This page is deprecated, and merged to [Katalis framework](https://github.com/zendbit/katalis)
 
 About
 =====
